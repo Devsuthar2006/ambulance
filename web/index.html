@@ -1119,16 +1119,22 @@
             </button>
           </div>
 
-          <!-- View Switcher & Traffic Tools -->
+          <!-- Google Maps & View Switcher -->
           <div class="fleet-filter-group" style="background: rgba(15, 23, 42, 0.9);">
-            <button class="filter-chip active" id="btnViewRealMap" onclick="setMapView('real')">
-              🗺️ Real City Map
+            <button class="filter-chip active map-layer-btn" data-layer="google_streets" onclick="setMapBaseLayer('google_streets')">
+              🗺️ Google Maps
+            </button>
+            <button class="filter-chip map-layer-btn" data-layer="google_satellite" onclick="setMapBaseLayer('google_satellite')">
+              🛰️ Satellite
+            </button>
+            <button class="filter-chip map-layer-btn" data-layer="carto_dark" onclick="setMapBaseLayer('carto_dark')">
+              🌌 Dark
             </button>
             <button class="filter-chip" id="btnViewGrid" onclick="setMapView('grid')">
-              📐 Tactical Grid
+              📐 Grid
             </button>
-            <button class="filter-chip active" id="btnToggleTraffic" onclick="toggleTrafficLayer()">
-              🚗 Traffic: ON
+            <button class="filter-chip active" id="btnToggleGoogleTraffic" onclick="toggleGoogleLiveTraffic()">
+              🚦 Live Traffic: ON
             </button>
             <button class="filter-chip" style="background: rgba(239, 68, 68, 0.25); border-color: #ef4444; color: #fca5a5; font-weight: 800;" id="btnTrafficDemo" onclick="triggerTrafficGridlockDemo()" title="Simulate Critical P3 Emergency trapped in Downtown Gridlock">
               ⚡ P3 Gridlock Bypass Demo
@@ -1396,12 +1402,42 @@
     let realMap = null;
     let mapActiveView = 'real'; // 'real' | 'grid'
     let showTrafficLayer = true;
+    let showGoogleLiveTraffic = true;
     let quadrantLayersGroup = null;
     let trafficLayersGroup = null;
     let routeLayersGroup = null;
     const ambulanceMarkersMap = new Map();
     const incidentMarkersMap = new Map();
     let trafficModelData = null;
+
+    // Google Maps and Base Layers
+    const MAP_BASE_LAYERS = {
+      google_streets: {
+        name: "Google Streets",
+        url: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        attribution: "© Google Maps",
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        maxZoom: 20,
+      },
+      google_satellite: {
+        name: "Google Satellite",
+        url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        attribution: "© Google Maps Imagery",
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        maxZoom: 20,
+      },
+      carto_dark: {
+        name: "Cyber Dark",
+        url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        attribution: "© OpenStreetMap, © CARTO",
+        subdomains: ['a', 'b', 'c', 'd'],
+        maxZoom: 19,
+      },
+    };
+
+    let currentBaseLayerKey = 'google_streets';
+    let currentBaseTileLayer = null;
+    let googleTrafficTileLayer = null;
 
     function initRealMap() {
       if (realMap) return;
@@ -1412,15 +1448,18 @@
         center: [METRO_BOUNDS.center_lat, METRO_BOUNDS.center_lon],
         zoom: METRO_BOUNDS.zoom,
         minZoom: 11,
-        maxZoom: 17,
+        maxZoom: 20,
         zoomControl: true,
       });
 
-      // CartoDB Dark Matter Tiles (High-Contrast Cyber/Dark Aesthetics)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap, © CARTO',
-      }).addTo(realMap);
+      // Default to Google Maps Roadmap tiles
+      setMapBaseLayer('google_streets');
+
+      // Google Maps Live Real-Time Traffic Layer
+      googleTrafficTileLayer = L.tileLayer(
+        'https://mt1.google.com/vt?lyrs=h,traffic|seconds_into_week:-1&style=15&x={x}&y={y}&z={z}',
+        { maxZoom: 20, opacity: 0.85, zIndex: 10 }
+      ).addTo(realMap);
 
       quadrantLayersGroup = L.layerGroup().addTo(realMap);
       trafficLayersGroup = L.layerGroup().addTo(realMap);
@@ -1432,6 +1471,55 @@
       setTimeout(() => {
         if (realMap) realMap.invalidateSize();
       }, 300);
+    }
+
+    function setMapBaseLayer(key) {
+      if (!realMap || !MAP_BASE_LAYERS[key]) return;
+      currentBaseLayerKey = key;
+
+      if (currentBaseTileLayer) {
+        realMap.removeLayer(currentBaseTileLayer);
+      }
+
+      const cfg = MAP_BASE_LAYERS[key];
+      currentBaseTileLayer = L.tileLayer(cfg.url, {
+        maxZoom: cfg.maxZoom || 20,
+        subdomains: cfg.subdomains || ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: cfg.attribution,
+      }).addTo(realMap);
+
+      currentBaseTileLayer.bringToBack();
+
+      if (mapActiveView !== 'real') {
+        setMapView('real');
+      }
+
+      document.querySelectorAll('.map-layer-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.layer === key);
+      });
+    }
+
+    function toggleGoogleLiveTraffic() {
+      showGoogleLiveTraffic = !showGoogleLiveTraffic;
+      const btn = document.getElementById('btnToggleGoogleTraffic');
+      if (btn) {
+        btn.textContent = showGoogleLiveTraffic ? '🚦 Live Traffic: ON' : '🚦 Live Traffic: OFF';
+        btn.classList.toggle('active', showGoogleLiveTraffic);
+      }
+
+      if (showGoogleLiveTraffic) {
+        if (!googleTrafficTileLayer) {
+          googleTrafficTileLayer = L.tileLayer(
+            'https://mt1.google.com/vt?lyrs=h,traffic|seconds_into_week:-1&style=15&x={x}&y={y}&z={z}',
+            { maxZoom: 20, opacity: 0.85, zIndex: 10 }
+          );
+        }
+        googleTrafficTileLayer.addTo(realMap);
+      } else {
+        if (googleTrafficTileLayer && realMap.hasLayer(googleTrafficTileLayer)) {
+          realMap.removeLayer(googleTrafficTileLayer);
+        }
+      }
     }
 
     function drawQuadrantOverlaysOnMap() {
@@ -1527,8 +1615,13 @@
 
     function setMapView(view) {
       mapActiveView = view;
-      document.getElementById('btnViewRealMap').classList.toggle('active', view === 'real');
-      document.getElementById('btnViewGrid').classList.toggle('active', view === 'grid');
+      const gridBtn = document.getElementById('btnViewGrid');
+      if (gridBtn) gridBtn.classList.toggle('active', view === 'grid');
+
+      document.querySelectorAll('.map-layer-btn').forEach(b => {
+        if (view === 'grid') b.classList.remove('active');
+        else b.classList.toggle('active', b.dataset.layer === currentBaseLayerKey);
+      });
 
       const realEl = document.getElementById('realMapContainer');
       const gridEl = document.getElementById('canvasContainer');
