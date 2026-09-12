@@ -8,11 +8,12 @@ from src.config import DEFAULT_SEED, DEFAULT_COVERAGE_PENALTY
 from src.generator import generate_world
 from src.dispatcher import NaiveDispatcher, CoverageAwareDispatcher
 from src.simulator import Simulator
+from src.traffic import get_default_traffic_model
 
 
-def build_simulation_trace(dispatcher, vehicles_init, incidents_init):
+def build_simulation_trace(dispatcher, vehicles_init, incidents_init, traffic_model=None):
     """Run simulation and collect full assignment paths, events, and timeline states."""
-    sim = Simulator(dispatcher=dispatcher)
+    sim = Simulator(dispatcher=dispatcher, traffic_model=traffic_model)
     res = sim.run(vehicles_init, incidents_init)
 
     # Initial vehicle map
@@ -170,13 +171,16 @@ def build_simulation_trace(dispatcher, vehicles_init, incidents_init):
 
 def main():
     vehicles, incidents = generate_world(DEFAULT_SEED)
+    tm = get_default_traffic_model()
 
-    print("Building high-fidelity continuous playback traces...")
-    naive_trace = build_simulation_trace(NaiveDispatcher(), vehicles, incidents)
-    cov_trace = build_simulation_trace(CoverageAwareDispatcher(DEFAULT_COVERAGE_PENALTY), vehicles, incidents)
+    print("Building high-fidelity continuous playback traces with traffic...")
+    naive_trace = build_simulation_trace(NaiveDispatcher(traffic_model=tm), vehicles, incidents, traffic_model=tm)
+    cov_trace = build_simulation_trace(CoverageAwareDispatcher(DEFAULT_COVERAGE_PENALTY, traffic_model=tm), vehicles, incidents, traffic_model=tm)
 
     payload = {
         "seed": DEFAULT_SEED,
+        "traffic": tm.to_dict(),
+        "bounds": tm.bounds,
         "naive": naive_trace,
         "coverage_aware": cov_trace,
     }

@@ -23,6 +23,7 @@ from src.voice.phone_provider import PhoneWebhookProvider
 from src.events.event_bus import EventBus, SimulationEvent, EventType
 from src.scenarios import ScenarioRunner
 from src.risk.risk_engine import RiskEngine
+from src.traffic import get_default_traffic_model
 
 app = FastAPI(
     title="RESQAI — Real-Time Emergency Response Intelligence Platform",
@@ -46,6 +47,7 @@ browser_voice = BrowserVoiceProvider()
 phone_voice = PhoneWebhookProvider()
 scenario_runner = ScenarioRunner()
 risk_engine = RiskEngine()
+traffic_model = get_default_traffic_model()
 
 # Dispatch lock — prevents concurrent requests from assigning the same vehicle
 # to two different incidents (PRD §3: each incident gets exactly one vehicle)
@@ -187,7 +189,7 @@ async def handle_voice_call(request: Request):
     # PRD §3 HARD CONSTRAINT: acquire lock so no two concurrent requests can
     # simultaneously read the fleet as idle and assign the same vehicle twice.
     policy_name = body.get("policy", "coverage")
-    dispatcher = get_dispatcher(policy_name)
+    dispatcher = get_dispatcher(policy_name, traffic_model=traffic_model)
 
     vehicle_dict = None
     new_idle_counts = [0, 0, 0, 0]
@@ -227,7 +229,8 @@ async def handle_voice_call(request: Request):
 
             if v is not None:
                 dist = float(((v.x - inc.x)**2 + (v.y - inc.y)**2)**0.5)
-                travel_time = dist / 1.0
+                travel_time = traffic_model.get_travel_time(v.x, v.y, inc.x, inc.y, live_minute)
+                traffic_mult = traffic_model.get_traffic_multiplier(v.x, v.y, inc.x, inc.y, live_minute)
                 reached_time = live_minute + travel_time
                 completed_time = reached_time + 8.0
 
@@ -248,6 +251,8 @@ async def handle_voice_call(request: Request):
                     "start_y": v.y,
                     "dest_x": inc.x,
                     "dest_y": inc.y,
+                    "raw_distance": round(dist, 2),
+                    "traffic_multiplier": round(traffic_mult, 2),
                     "travel_time": round(travel_time, 2),
                     "reached_minute": round(reached_time, 2),
                     "completed_minute": round(completed_time, 2),
@@ -342,6 +347,12 @@ async def get_live_state():
         "incidents": [inc.to_dict() for inc in live_incidents],
         "idle_counts": idle_counts,
     }
+
+
+@app.get("/api/traffic/state")
+async def get_traffic_state():
+    """Return traffic model zones, corridors, bounds, and GeoJSON for real map display."""
+    return traffic_model.to_dict()
 
 
 @app.post("/api/scenarios/run")

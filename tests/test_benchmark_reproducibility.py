@@ -10,7 +10,7 @@ from src.metrics import compute_metrics
 
 def test_official_benchmark_reproducibility_regression():
     """Verify that all platform extensions have zero effect on official benchmark metrics."""
-    vehicles, incidents = generate_world(seed=DEFAULT_SEED)
+    vehicles, incidents = generate_world(seed=DEFAULT_SEED, total_incidents=100)
 
     # 1. Run Coverage-Aware (AI-01 Core Algorithm)
     sim_cov = Simulator(dispatcher=CoverageAwareDispatcher(coverage_penalty=20.0))

@@ -15,6 +15,7 @@ from src.config import (
 )
 from src.models import Vehicle, Incident
 from src.dispatcher import BaseDispatcher
+from src.traffic.traffic_model import TrafficModel
 
 
 @dataclass
@@ -34,10 +35,12 @@ class Simulator:
     def __init__(
         self,
         dispatcher: BaseDispatcher,
+        traffic_model: TrafficModel | None = None,
         start_minute: int = SIM_START_MINUTE,
         end_minute: int = SIM_END_MINUTE,
     ) -> None:
         self.dispatcher = dispatcher
+        self.traffic_model = traffic_model
         self.start_minute = start_minute
         self.end_minute = end_minute
 
@@ -121,7 +124,10 @@ class Simulator:
                     # Assign vehicle
                     v = fleet[chosen_vehicle.id]
                     dist = float(np.hypot(v.x - inc.x, v.y - inc.y))
-                    travel_time = dist / VEHICLE_SPEED
+                    if self.traffic_model:
+                        travel_time = self.traffic_model.get_travel_time(v.x, v.y, inc.x, inc.y, t)
+                    else:
+                        travel_time = dist / VEHICLE_SPEED
                     reached_minute = t + travel_time
                     completion_minute = reached_minute + SERVICE_TIME
 

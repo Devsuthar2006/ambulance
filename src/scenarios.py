@@ -8,6 +8,7 @@ from src.models import Vehicle, Incident
 from src.dispatcher import get_dispatcher
 from src.simulator import Simulator
 from src.metrics import compute_metrics
+from src.traffic import get_default_traffic_model
 
 
 class ScenarioRunner:
@@ -15,6 +16,7 @@ class ScenarioRunner:
 
     SCENARIOS = {
         "NORMAL": "Standard benchmark fleet (20 vehicles, 100 incidents).",
+        "TRAFFIC_GRIDLOCK": "Downtown arterial gridlock: 3.5x congestion in Q3 (Market & SOMA). Evaluates traffic bypass on P3 calls.",
         "VEHICLES_DOWN": "Fleet breakdown: 3 ambulances unavailable (17 active).",
         "DEMAND_SURGE": "30% demand surge: 130 incidents across the region.",
         "P3_SURGE": "Mass casualty event: 50% of calls are Priority 3 Critical.",
@@ -78,6 +80,15 @@ class ScenarioRunner:
                     inc.y = float(rng.uniform(50.0, 100.0))
             return vehicles, incidents
 
+        elif name == "TRAFFIC_GRIDLOCK":
+            # Concentrate emergencies around the downtown chokepoints
+            rng = np.random.Generator(np.random.PCG64(seed + 666))
+            for inc in incidents:
+                if rng.random() < 0.45:
+                    inc.x = float(rng.uniform(60.0, 85.0))
+                    inc.y = float(rng.uniform(55.0, 75.0))
+            return vehicles, incidents
+
         else:
             raise ValueError(f"Unknown scenario '{scenario_name}'. Allowed: {list(self.SCENARIOS.keys())}")
 
@@ -88,6 +99,7 @@ class ScenarioRunner:
     ) -> dict:
         """Run all 3 dispatchers (nearest, coverage, adaptive) on the specified scenario."""
         v_base, i_base = self.generate_scenario(scenario_name, seed=seed)
+        traffic_model = get_default_traffic_model() if scenario_name.upper() == "TRAFFIC_GRIDLOCK" else None
 
         policies = [
             ("nearest", "Nearest (Baseline)"),
@@ -97,8 +109,8 @@ class ScenarioRunner:
 
         results = {}
         for pol_id, pol_label in policies:
-            disp = get_dispatcher(pol_id)
-            sim = Simulator(dispatcher=disp)
+            disp = get_dispatcher(pol_id, traffic_model=traffic_model)
+            sim = Simulator(dispatcher=disp, traffic_model=traffic_model)
             res = sim.run(copy.deepcopy(v_base), copy.deepcopy(i_base))
             metrics = compute_metrics(res, seed=seed)
 

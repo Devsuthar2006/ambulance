@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RESQAI — Real-Time Emergency Response Intelligence Platform</title>
+  <!-- Leaflet Real Map Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
       --bg-base: #070b14;
@@ -190,7 +193,7 @@
       gap: 6px;
     }
 
-    .canvas-container {
+    .map-viewport-wrapper {
       position: relative;
       background: #060911;
       border: 2px solid var(--border);
@@ -201,6 +204,26 @@
       width: 100%;
       height: 100%;
       max-width: 100%;
+      overflow: hidden;
+    }
+
+    #realMapContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #060a12;
+    }
+
+    .canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -213,6 +236,239 @@
       width: 100%;
       height: 100%;
     }
+
+    /* Traffic Legend Overlay */
+    .traffic-legend-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 14px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.72rem;
+      z-index: 500;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+      pointer-events: auto;
+    }
+
+    .traffic-leg-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .traffic-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Leaflet Dark Styles */
+    .leaflet-container {
+      background: #060a12 !important;
+      font-family: inherit;
+    }
+    .leaflet-control-zoom {
+      border: 1px solid var(--border) !important;
+      background: rgba(15, 23, 42, 0.9) !important;
+      border-radius: 8px !important;
+      overflow: hidden;
+    }
+    .leaflet-control-zoom a {
+      background: rgba(15, 23, 42, 0.9) !important;
+      color: var(--text-main) !important;
+      border-bottom: 1px solid var(--border) !important;
+    }
+    .leaflet-control-zoom a:hover {
+      background: #1e293b !important;
+      color: #38bdf8 !important;
+    }
+    .leaflet-control-attribution {
+      background: rgba(7, 11, 20, 0.8) !important;
+      color: #64748b !important;
+      font-size: 0.65rem !important;
+    }
+
+    /* Leaflet Custom Ambulance Marker */
+    .leaflet-amb-div {
+      background: transparent !important;
+      border: none !important;
+    }
+    .amb-marker-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+    }
+    .amb-beacon-ring {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+    }
+    .amb-beacon-ring.active {
+      display: block;
+      animation: sirenBeacon 0.75s infinite alternate;
+    }
+    @keyframes sirenBeacon {
+      0% { transform: scale(0.8); opacity: 0.9; box-shadow: 0 0 10px rgba(56, 189, 248, 0.9); }
+      100% { transform: scale(1.35); opacity: 0.25; box-shadow: 0 0 18px rgba(239, 68, 68, 0.9); }
+    }
+    .amb-icon-chassis {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      border: 1.5px solid #fff;
+      transition: transform 0.15s ease, background 0.2s;
+    }
+    .amb-id-badge {
+      position: absolute;
+      bottom: -6px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      color: #fff;
+      padding: 0 3px;
+      line-height: 11px;
+    }
+    .amb-eta-tag {
+      position: absolute;
+      top: -14px;
+      background: #0284c7;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 4px;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+
+    /* Leaflet Custom Incident Marker */
+    .leaflet-inc-div {
+      background: transparent !important;
+      border: none !important;
+    }
+    .inc-marker-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+    }
+    .inc-pulse-ring {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      animation: incRadar 1.3s infinite ease-out;
+      pointer-events: none;
+    }
+    @keyframes incRadar {
+      0% { transform: scale(0.3); opacity: 1.0; }
+      100% { transform: scale(2.2); opacity: 0.0; }
+    }
+    .inc-core-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      z-index: 2;
+    }
+    .inc-tag-badge {
+      position: absolute;
+      bottom: -6px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 0 3px;
+      line-height: 10px;
+    }
+
+    /* Traffic Decision Card HUD */
+    .traffic-decision-hud {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 320px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1.5px solid #38bdf8;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.25);
+      border-radius: 10px;
+      padding: 12px;
+      z-index: 600;
+      display: none;
+      animation: fadeInSlide 0.3s ease;
+    }
+    @keyframes fadeInSlide {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .hud-title {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .hud-close {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .hud-close:hover { color: #fff; }
+    .hud-body {
+      font-size: 0.72rem;
+      line-height: 1.4;
+      color: var(--text-main);
+    }
+    .hud-diff-table {
+      width: 100%;
+      margin-top: 8px;
+      border-collapse: collapse;
+      font-size: 0.68rem;
+    }
+    .hud-diff-table th, .hud-diff-table td {
+      padding: 3px 6px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .hud-diff-table th { color: var(--text-muted); font-weight: 700; }
 
     /* Quadrant Status Overlays */
     .quad-badge {
@@ -863,31 +1119,85 @@
             </button>
           </div>
 
+          <!-- View Switcher & Traffic Tools -->
+          <div class="fleet-filter-group" style="background: rgba(15, 23, 42, 0.9);">
+            <button class="filter-chip active" id="btnViewRealMap" onclick="setMapView('real')">
+              🗺️ Real City Map
+            </button>
+            <button class="filter-chip" id="btnViewGrid" onclick="setMapView('grid')">
+              📐 Tactical Grid
+            </button>
+            <button class="filter-chip active" id="btnToggleTraffic" onclick="toggleTrafficLayer()">
+              🚗 Traffic: ON
+            </button>
+            <button class="filter-chip" style="background: rgba(239, 68, 68, 0.25); border-color: #ef4444; color: #fca5a5; font-weight: 800;" id="btnTrafficDemo" onclick="triggerTrafficGridlockDemo()" title="Simulate Critical P3 Emergency trapped in Downtown Gridlock">
+              ⚡ P3 Gridlock Bypass Demo
+            </button>
+          </div>
+
           <div class="fleet-status-pill" id="fleetStatusPill">
             <span class="status-pulse-dot" id="statusDot"></span>
             <span id="fleetStatusText">STANDBY • ALL QUADRANTS READY (20 UNITS)</span>
           </div>
         </div>
 
-        <div class="canvas-container" id="canvasContainer">
-          <canvas id="simCanvas" width="800" height="800"></canvas>
+        <div class="map-viewport-wrapper" id="mapViewportWrapper">
+          <!-- Leaflet Real City Map Container -->
+          <div id="realMapContainer"></div>
+
+          <!-- Tactical Grid Canvas Container (toggled via View Switcher) -->
+          <div class="canvas-container" id="canvasContainer" style="display: none;">
+            <canvas id="simCanvas" width="800" height="800"></canvas>
+          </div>
 
           <!-- Quadrant Badges Overlaid Directly on Map -->
           <div class="quad-badge" id="quadQ2">
             <div class="dot"></div>
-            <span>Q2 (Upper-Left): <strong id="q2Count">5</strong> Idle</span>
+            <span>Q2 (NW Presidio): <strong id="q2Count">5</strong> Idle</span>
           </div>
           <div class="quad-badge" id="quadQ3">
             <div class="dot"></div>
-            <span>Q3 (Upper-Right): <strong id="q3Count">5</strong> Idle</span>
+            <span>Q3 (NE Downtown): <strong id="q3Count">5</strong> Idle</span>
           </div>
           <div class="quad-badge" id="quadQ0">
             <div class="dot"></div>
-            <span>Q0 (Lower-Left): <strong id="q0Count">5</strong> Idle</span>
+            <span>Q0 (SW Sunset): <strong id="q0Count">5</strong> Idle</span>
           </div>
           <div class="quad-badge" id="quadQ1">
             <div class="dot"></div>
-            <span>Q1 (Lower-Right): <strong id="q1Count">5</strong> Idle</span>
+            <span>Q1 (SE Mission): <strong id="q1Count">5</strong> Idle</span>
+          </div>
+
+          <!-- Live Traffic Congestion Legend -->
+          <div class="traffic-legend-bar" id="trafficLegendBar">
+            <span style="font-weight: 700; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase;">Traffic:</span>
+            <span class="traffic-leg-item"><span class="traffic-dot" style="background: #10b981;"></span> Free-Flow (1.0x)</span>
+            <span class="traffic-leg-item"><span class="traffic-dot" style="background: #f59e0b;"></span> Moderate (1.6x)</span>
+            <span class="traffic-leg-item"><span class="traffic-dot" style="background: #ef4444;"></span> Heavy (2.8x)</span>
+            <span class="traffic-leg-item"><span class="traffic-dot" style="background: #b91c1c; box-shadow: 0 0 6px #ef4444;"></span> Gridlock (3.5x)</span>
+          </div>
+
+          <!-- Traffic Decision HUD Card -->
+          <div class="traffic-decision-hud" id="trafficDecisionHud">
+            <div class="hud-title">
+              <span id="hudStrategy">🚨 TRAFFIC GRIDLOCK BYPASS</span>
+              <span class="hud-close" onclick="closeTrafficHud()">×</span>
+            </div>
+            <div class="hud-body" id="hudReason">
+              Evaluating candidate routes...
+            </div>
+            <table class="hud-diff-table" id="hudTable">
+              <thead>
+                <tr>
+                  <th>Ambulance</th>
+                  <th>Distance</th>
+                  <th>Traffic</th>
+                  <th>Actual ETA</th>
+                  <th>Decision</th>
+                </tr>
+              </thead>
+              <tbody id="hudTableBody"></tbody>
+            </table>
           </div>
         </div>
 
@@ -1065,6 +1375,566 @@
     const ctx = canvas.getContext('2d');
     let W = canvas.width;
     let H = canvas.height;
+
+    // --- Leaflet Real Map & Traffic Congestion Engine State ---
+    const METRO_BOUNDS = {
+      lat_min: 37.7050,
+      lat_max: 37.8100,
+      lon_min: -122.5150,
+      lon_max: -122.3750,
+      center_lat: 37.7575,
+      center_lon: -122.4450,
+      zoom: 13,
+    };
+
+    function gridToLatLon(x, y) {
+      const lat = METRO_BOUNDS.lat_min + (y / 100.0) * (METRO_BOUNDS.lat_max - METRO_BOUNDS.lat_min);
+      const lon = METRO_BOUNDS.lon_min + (x / 100.0) * (METRO_BOUNDS.lon_max - METRO_BOUNDS.lon_min);
+      return [lat, lon];
+    }
+
+    let realMap = null;
+    let mapActiveView = 'real'; // 'real' | 'grid'
+    let showTrafficLayer = true;
+    let quadrantLayersGroup = null;
+    let trafficLayersGroup = null;
+    let routeLayersGroup = null;
+    const ambulanceMarkersMap = new Map();
+    const incidentMarkersMap = new Map();
+    let trafficModelData = null;
+
+    function initRealMap() {
+      if (realMap) return;
+      const container = document.getElementById('realMapContainer');
+      if (!container) return;
+
+      realMap = L.map('realMapContainer', {
+        center: [METRO_BOUNDS.center_lat, METRO_BOUNDS.center_lon],
+        zoom: METRO_BOUNDS.zoom,
+        minZoom: 11,
+        maxZoom: 17,
+        zoomControl: true,
+      });
+
+      // CartoDB Dark Matter Tiles (High-Contrast Cyber/Dark Aesthetics)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap, © CARTO',
+      }).addTo(realMap);
+
+      quadrantLayersGroup = L.layerGroup().addTo(realMap);
+      trafficLayersGroup = L.layerGroup().addTo(realMap);
+      routeLayersGroup = L.layerGroup().addTo(realMap);
+
+      drawQuadrantOverlaysOnMap();
+      fetchTrafficData();
+
+      setTimeout(() => {
+        if (realMap) realMap.invalidateSize();
+      }, 300);
+    }
+
+    function drawQuadrantOverlaysOnMap() {
+      if (!quadrantLayersGroup) return;
+      quadrantLayersGroup.clearLayers();
+
+      const [splitLat, splitLon] = gridToLatLon(50, 50);
+
+      // Boundary dashed lines
+      L.polyline([[METRO_BOUNDS.lat_min, splitLon], [METRO_BOUNDS.lat_max, splitLon]], {
+        color: '#38bdf8',
+        weight: 1.5,
+        dashArray: '6, 6',
+        opacity: 0.4,
+      }).addTo(quadrantLayersGroup);
+
+      L.polyline([[splitLat, METRO_BOUNDS.lon_min], [splitLat, METRO_BOUNDS.lon_max]], {
+        color: '#38bdf8',
+        weight: 1.5,
+        dashArray: '6, 6',
+        opacity: 0.4,
+      }).addTo(quadrantLayersGroup);
+    }
+
+    async function fetchTrafficData() {
+      try {
+        const res = await fetch('/api/traffic/state');
+        trafficModelData = await res.json();
+        renderTrafficOnMap();
+      } catch (e) {
+        console.error("Traffic data fetch error:", e);
+      }
+    }
+
+    function renderTrafficOnMap() {
+      if (!trafficLayersGroup || !trafficModelData) return;
+      trafficLayersGroup.clearLayers();
+
+      if (!showTrafficLayer) return;
+
+      // 1. Corridors
+      if (trafficModelData.corridors) {
+        for (const c of trafficModelData.corridors) {
+          const [lat1, lon1] = gridToLatLon(c.x1, c.y1);
+          const [lat2, lon2] = gridToLatLon(c.x2, c.y2);
+
+          const col = c.multiplier >= 3 ? '#ef4444' : (c.multiplier >= 2 ? '#f97316' : (c.multiplier > 1.2 ? '#eab308' : '#10b981'));
+          const weight = c.multiplier >= 3 ? 6 : (c.multiplier >= 2 ? 5 : 4);
+
+          const poly = L.polyline([[lat1, lon1], [lat2, lon2]], {
+            color: col,
+            weight: weight,
+            opacity: 0.85,
+            lineCap: 'round',
+          }).addTo(trafficLayersGroup);
+
+          poly.bindTooltip(`
+            <div style="font-family: sans-serif; font-size: 11px; padding: 2px;">
+              <strong style="color: ${col};">${c.name}</strong><br/>
+              Status: <strong>${c.multiplier >= 3 ? 'GRIDLOCK' : (c.multiplier >= 2 ? 'HEAVY' : 'CLEAR')}</strong> (${c.multiplier}x delay)<br/>
+              Type: ${c.is_expressway ? 'Expressway Bypass' : 'Urban Arterial'}
+            </div>
+          `, { sticky: true });
+        }
+      }
+
+      // 2. Congestion Zones
+      if (trafficModelData.zones) {
+        for (const z of trafficModelData.zones) {
+          const [lat, lon] = gridToLatLon(z.center_x, z.center_y);
+          const latSpanKm = (METRO_BOUNDS.lat_max - METRO_BOUNDS.lat_min) * 111.0;
+          const radiusMeters = (z.radius / 100.0) * latSpanKm * 1000.0;
+
+          const circle = L.circle([lat, lon], {
+            radius: radiusMeters,
+            color: '#ef4444',
+            weight: 1.5,
+            dashArray: '4, 4',
+            fillColor: '#ef4444',
+            fillOpacity: 0.12,
+          }).addTo(trafficLayersGroup);
+
+          circle.bindTooltip(`
+            <div style="font-family: sans-serif; font-size: 11px;">
+              <strong style="color: #ef4444;">🚨 ${z.name}</strong><br/>
+              Congestion: <strong>${z.multiplier}x slowdown</strong><br/>
+              ${z.description}
+            </div>
+          `, { sticky: true });
+        }
+      }
+    }
+
+    function setMapView(view) {
+      mapActiveView = view;
+      document.getElementById('btnViewRealMap').classList.toggle('active', view === 'real');
+      document.getElementById('btnViewGrid').classList.toggle('active', view === 'grid');
+
+      const realEl = document.getElementById('realMapContainer');
+      const gridEl = document.getElementById('canvasContainer');
+      const legEl = document.getElementById('trafficLegendBar');
+
+      if (view === 'real') {
+        realEl.style.display = 'block';
+        gridEl.style.display = 'none';
+        legEl.style.display = 'flex';
+        if (realMap) realMap.invalidateSize();
+      } else {
+        realEl.style.display = 'none';
+        gridEl.style.display = 'flex';
+        legEl.style.display = 'none';
+        syncMapLayout();
+      }
+      render();
+    }
+
+    function toggleTrafficLayer() {
+      showTrafficLayer = !showTrafficLayer;
+      const btn = document.getElementById('btnToggleTraffic');
+      btn.textContent = showTrafficLayer ? '🚗 Traffic: ON' : '🚗 Traffic: OFF';
+      btn.classList.toggle('active', showTrafficLayer);
+      renderTrafficOnMap();
+      render();
+    }
+
+    function updateRealMap() {
+      if (!realMap || mapActiveView !== 'real') return;
+      const now = performance.now();
+      updateFleetStatus();
+
+      // Mode A: Live Interactive Calls
+      if (currentMode === 'A') {
+        const allocatedIds = new Set(liveDispatchedCalls.map(c => c.vehicle.id));
+        const activeVehIds = new Set();
+        const activeIncIds = new Set();
+        routeLayersGroup.clearLayers();
+
+        // 1. Standby ambulances
+        if (fleetFilter !== 'dynamic' && liveFleetState && liveFleetState.vehicles) {
+          for (const v of liveFleetState.vehicles) {
+            if (!allocatedIds.has(v.id)) {
+              activeVehIds.add(v.id);
+              const [vLat, vLon] = gridToLatLon(v.x, v.y);
+              setOrUpdateAmbulanceMarker(v.id, vLat, vLon, 'idle', 0, 0, 0.7);
+            }
+          }
+        }
+
+        // 2. Dispatched ambulances & calls
+        for (const call of liveDispatchedCalls) {
+          const veh = call.vehicle;
+          const inc = call.incident;
+          activeVehIds.add(veh.id);
+          activeIncIds.add(inc.id);
+
+          const elapsedSec = (now - call.startTime) / 1000.0;
+          const travelDurationSec = Math.max(3.0, Math.min(8.0, veh.travel_time * 0.35));
+          const isArrived = elapsedSec >= travelDurationSec;
+          const frac = Math.min(1.0, elapsedSec / travelDurationSec);
+
+          const curX = veh.start_x + frac * (veh.dest_x - veh.start_x);
+          const curY = veh.start_y + frac * (veh.dest_y - veh.start_y);
+          const [curLat, curLon] = gridToLatLon(curX, curY);
+          const [incLat, incLon] = gridToLatLon(inc.x, inc.y);
+          const heading = Math.atan2(toY(veh.dest_y) - toY(veh.start_y), toX(veh.dest_x) - toX(veh.start_x));
+          const status = isArrived ? 'servicing' : 'traveling';
+          const remainingTravelMin = Math.max(0, (1 - frac) * veh.travel_time);
+
+          // Route trajectory
+          const routeColor = inc.priority === 3 ? '#ef4444' : '#38bdf8';
+          L.polyline([[curLat, curLon], [incLat, incLon]], {
+            color: routeColor,
+            weight: 3.5,
+            dashArray: '6, 6',
+            opacity: 0.9,
+          }).addTo(routeLayersGroup);
+
+          setOrUpdateAmbulanceMarker(veh.id, curLat, curLon, status, heading, frac, 1.0, remainingTravelMin);
+          setOrUpdateIncidentMarker(inc.id, incLat, incLon, inc.priority, isArrived, remainingTravelMin);
+        }
+
+        pruneLeafletMarkers(activeVehIds, activeIncIds);
+
+      } else {
+        // Mode B: Playback
+        if (!simData) return;
+        const trace = simData[currentPolicy];
+        if (!trace) return;
+
+        const activeVehIds = new Set();
+        const activeIncIds = new Set();
+        routeLayersGroup.clearLayers();
+
+        for (let vId = 0; vId < 20; vId++) {
+          const init = trace.vehicles[vId];
+          if (!init) continue;
+          let vx = init.x, vy = init.y, status = 'idle', target = null, heading = 0, progress = 0;
+          let isAllocated = false;
+
+          const assignments = trace.vehicle_assignments[String(vId)] || trace.vehicle_assignments[vId] || [];
+          for (const a of assignments) {
+            if (a.assigned_minute > simTime) break;
+            isAllocated = true;
+            if (a.completed_minute <= simTime) {
+              vx = a.dest_x;
+              vy = a.dest_y;
+              status = 'idle';
+              target = null;
+            } else {
+              target = a.incident_id;
+              if (simTime < a.reached_minute) {
+                status = 'traveling';
+                const duration = Math.max(1e-4, a.reached_minute - a.assigned_minute);
+                const frac = Math.min(1.0, Math.max(0.0, (simTime - a.assigned_minute) / duration));
+                vx = a.start_x + frac * (a.dest_x - a.start_x);
+                vy = a.start_y + frac * (a.dest_y - a.start_y);
+                heading = Math.atan2(toY(a.dest_y) - toY(a.start_y), toX(a.dest_x) - toX(a.start_x));
+              } else {
+                status = 'servicing';
+                vx = a.dest_x;
+                vy = a.dest_y;
+                progress = Math.min(1.0, (simTime - a.reached_minute) / 8.0);
+              }
+              break;
+            }
+          }
+
+          if (fleetFilter === 'dynamic' && !isAllocated) continue;
+
+          activeVehIds.add(vId);
+          const [vLat, vLon] = gridToLatLon(vx, vy);
+          setOrUpdateAmbulanceMarker(vId, vLat, vLon, status, heading, progress, status === 'idle' ? 0.7 : 1.0);
+
+          if (status === 'traveling' && target !== null) {
+            const inc = trace.incidents.find(i => i.id === target);
+            if (inc) {
+              const [incLat, incLon] = gridToLatLon(inc.x, inc.y);
+              L.polyline([[vLat, vLon], [incLat, incLon]], {
+                color: inc.priority === 3 ? '#ef4444' : '#38bdf8',
+                weight: 3.5,
+                dashArray: '6, 6',
+                opacity: 0.85,
+              }).addTo(routeLayersGroup);
+            }
+          }
+        }
+
+        for (const inc of trace.incidents) {
+          if (inc.arrival_minute > simTime) continue;
+          const isDone = inc.completed_minute !== null && inc.completed_minute <= simTime;
+          if (isDone && (simTime - inc.completed_minute) > 3.0) continue;
+          activeIncIds.add(inc.id);
+          const [incLat, incLon] = gridToLatLon(inc.x, inc.y);
+          setOrUpdateIncidentMarker(inc.id, incLat, incLon, inc.priority, isDone, null);
+        }
+
+        pruneLeafletMarkers(activeVehIds, activeIncIds);
+      }
+    }
+
+    function setOrUpdateAmbulanceMarker(id, lat, lon, status, heading, progress, opacity, etaMin = null) {
+      let m = ambulanceMarkersMap.get(id);
+      const color = status === 'traveling' ? '#0284c7' : (status === 'servicing' ? '#eab308' : '#10b981');
+      const headingDeg = Math.round((heading * 180) / Math.PI);
+      const etaHtml = (status === 'traveling' && etaMin !== null && etaMin > 0)
+        ? `<div class="amb-eta-tag">ETA ${etaMin.toFixed(1)}m</div>` : '';
+
+      if (!m) {
+        const icon = L.divIcon({
+          className: 'leaflet-amb-div',
+          html: `
+            <div class="amb-marker-wrapper" id="amb_m_${id}">
+              <div class="amb-beacon-ring ${status === 'traveling' ? 'active' : ''}"></div>
+              <div class="amb-icon-chassis" style="background: ${color}; transform: rotate(${headingDeg}deg);">
+                🚑
+              </div>
+              <div class="amb-id-badge">#${id}</div>
+              ${etaHtml}
+            </div>
+          `,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+        });
+        m = L.marker([lat, lon], { icon, zIndexOffset: 100 }).addTo(realMap);
+        ambulanceMarkersMap.set(id, m);
+      } else {
+        m.setLatLng([lat, lon]);
+        const el = document.getElementById(`amb_m_${id}`);
+        if (el) {
+          el.style.opacity = opacity;
+          const chassis = el.querySelector('.amb-icon-chassis');
+          if (chassis) {
+            chassis.style.background = color;
+            chassis.style.transform = `rotate(${headingDeg}deg)`;
+          }
+          const beacon = el.querySelector('.amb-beacon-ring');
+          if (beacon) {
+            if (status === 'traveling') beacon.classList.add('active');
+            else beacon.classList.remove('active');
+          }
+          const oldEta = el.querySelector('.amb-eta-tag');
+          if (status === 'traveling' && etaMin !== null && etaMin > 0) {
+            if (oldEta) oldEta.textContent = `ETA ${etaMin.toFixed(1)}m`;
+            else {
+              const newEta = document.createElement('div');
+              newEta.className = 'amb-eta-tag';
+              newEta.textContent = `ETA ${etaMin.toFixed(1)}m`;
+              el.appendChild(newEta);
+            }
+          } else if (oldEta) {
+            oldEta.remove();
+          }
+        }
+      }
+    }
+
+    function setOrUpdateIncidentMarker(id, lat, lon, priority, isDone, etaMin = null) {
+      let m = incidentMarkersMap.get(id);
+      if (isDone) {
+        if (m) {
+          realMap.removeLayer(m);
+          incidentMarkersMap.delete(id);
+        }
+        return;
+      }
+
+      const col = priority === 3 ? '#ef4444' : (priority === 2 ? '#f97316' : '#64748b');
+      const iconEmoji = priority === 3 ? '🚨' : (priority === 2 ? '⚠️' : '📍');
+
+      if (!m) {
+        const icon = L.divIcon({
+          className: 'leaflet-inc-div',
+          html: `
+            <div class="inc-marker-wrapper" id="inc_m_${id}">
+              <div class="inc-pulse-ring" style="border: 2px solid ${col};"></div>
+              <div class="inc-core-badge" style="background: ${col};">
+                ${iconEmoji}
+              </div>
+              <div class="inc-tag-badge" style="color: ${col};">#${id}</div>
+            </div>
+          `,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        });
+        m = L.marker([lat, lon], { icon, zIndexOffset: 200 }).addTo(realMap);
+        incidentMarkersMap.set(id, m);
+      } else {
+        m.setLatLng([lat, lon]);
+      }
+    }
+
+    function pruneLeafletMarkers(activeVehIds, activeIncIds) {
+      for (const [id, m] of ambulanceMarkersMap.entries()) {
+        if (!activeVehIds.has(id)) {
+          realMap.removeLayer(m);
+          ambulanceMarkersMap.delete(id);
+        }
+      }
+      for (const [id, m] of incidentMarkersMap.entries()) {
+        if (!activeIncIds.has(id)) {
+          realMap.removeLayer(m);
+          incidentMarkersMap.delete(id);
+        }
+      }
+    }
+
+    function showTrafficDecisionHud(data) {
+      const hud = document.getElementById('trafficDecisionHud');
+      if (!hud) return;
+
+      const expl = data.explanation || {};
+      const strat = expl.strategy || 'DISPATCH_OPTIMAL';
+      const reason = expl.reason || 'Unit dispatched to scene.';
+
+      document.getElementById('hudStrategy').textContent = strat === 'TRAFFIC_GRIDLOCK_BYPASS'
+        ? '🚨 TRAFFIC GRIDLOCK BYPASS' : (strat === 'PRESERVE_COVERAGE' ? '🛡️ COVERAGE PRESERVATION' : '⚡ OPTIMAL NEAREST');
+      document.getElementById('hudReason').textContent = reason;
+
+      const tbody = document.getElementById('hudTableBody');
+      tbody.innerHTML = '';
+
+      if (expl.candidates) {
+        for (const c of expl.candidates.slice(0, 4)) {
+          const isSelected = c.vehicle_id === data.vehicle.id;
+          const tr = document.createElement('tr');
+          if (isSelected) tr.style.background = 'rgba(56, 189, 248, 0.18)';
+
+          const multCol = c.traffic_multiplier >= 3 ? '#ef4444' : (c.traffic_multiplier >= 2 ? '#f97316' : '#10b981');
+
+          tr.innerHTML = `
+            <td><strong>#${c.vehicle_id}</strong> (Q${c.quadrant})</td>
+            <td>${c.raw_distance ? c.raw_distance.toFixed(1) : '—'}</td>
+            <td style="color: ${multCol}; font-weight: 700;">${c.traffic_multiplier ? c.traffic_multiplier.toFixed(1) + 'x' : '1.0x'}</td>
+            <td><strong>${c.travel_time ? c.travel_time.toFixed(1) + 'm' : '—'}</strong></td>
+            <td>${isSelected ? '<span style="color:#10b981; font-weight:800;">✅ DISPATCHED</span>' : (c.traffic_multiplier >= 2.5 ? '<span style="color:#ef4444;">❌ IN GRIDLOCK</span>' : 'Standby')}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+      }
+
+      hud.style.display = 'block';
+    }
+
+    function closeTrafficHud() {
+      const hud = document.getElementById('trafficDecisionHud');
+      if (hud) hud.style.display = 'none';
+    }
+
+    async function triggerTrafficGridlockDemo() {
+      setMode('A');
+      setMapView('real');
+      liveDispatchedCalls = [];
+
+      const [lat, lon] = gridToLatLon(75.0, 60.0);
+      if (realMap) {
+        realMap.flyTo([lat, lon], 14, { duration: 1.0 });
+      }
+
+      const transcript = "CRITICAL EMERGENCY! 60-year-old male sudden cardiac arrest at 4th and Market Downtown! Not breathing, CPR in progress!";
+      document.getElementById('voiceInput').value = transcript;
+
+      try {
+        const res = await fetch('/api/call/voice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcript: transcript,
+            source: 'BROWSER',
+            x: 75.0,
+            y: 60.0,
+            policy: currentPolicy === 'naive' ? 'naive' : 'coverage_aware',
+          })
+        });
+        const data = await res.json();
+
+        const t = data.triage;
+        document.getElementById('triageCard').style.display = 'block';
+        document.getElementById('triagePrio').textContent = `PRIORITY ${t.priority} • ${t.priority_label}`;
+        document.getElementById('triagePrio').className = `prio-badge p${t.priority}`;
+        document.getElementById('triageType').textContent = t.emergency_type;
+        document.getElementById('triageConf').textContent = `${Math.round(t.confidence * 100)}% Confidence`;
+        document.getElementById('triageSummary').textContent = t.summary;
+
+        const evList = document.getElementById('triageEvidence');
+        evList.innerHTML = '';
+        for (const ev of t.evidence) {
+          const chip = document.createElement('span');
+          chip.className = 'ev-chip';
+          chip.textContent = ev;
+          evList.appendChild(chip);
+        }
+
+        const exp = data.explanation;
+        if (exp && exp.candidates && exp.candidates.length > 0) {
+          document.getElementById('decUnit').textContent = exp.selected_vehicle_id !== null ? `🚑 Vehicle #${exp.selected_vehicle_id}` : 'QUEUED';
+          document.getElementById('decStrat').textContent = exp.strategy || 'EVALUATED';
+          document.getElementById('decReason').textContent = exp.reason;
+
+          const tbody = document.getElementById('candTableBody');
+          tbody.innerHTML = '';
+          for (const c of exp.candidates.slice(0, 5)) {
+            const tr = document.createElement('tr');
+            if (c.vehicle_id === exp.selected_vehicle_id) tr.className = 'selected';
+            tr.innerHTML = `
+              <td>#${c.vehicle_id}</td>
+              <td>Q${c.quadrant}</td>
+              <td>${c.travel_time.toFixed(1)}m ${c.traffic_multiplier > 1.2 ? '<span style="color:#ef4444;font-weight:700;">(' + c.traffic_multiplier.toFixed(1) + 'x)</span>' : ''}</td>
+              <td>${c.is_last ? '⚠️ YES' : 'No'}</td>
+              <td>+${c.coverage_penalty.toFixed(1)}</td>
+              <td>${c.total_cost.toFixed(1)}</td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+
+        if (data.vehicle) {
+          liveDispatchedCalls.push({
+            incident: data.incident,
+            vehicle: data.vehicle,
+            triage: data.triage,
+            explanation: data.explanation,
+            startTime: performance.now(),
+          });
+        }
+
+        showTrafficDecisionHud(data);
+
+        if (data.quadrant_idle_counts) {
+          const q = data.quadrant_idle_counts;
+          document.getElementById('q0Count').textContent = q[0];
+          document.getElementById('q1Count').textContent = q[1];
+          document.getElementById('q2Count').textContent = q[2];
+          document.getElementById('q3Count').textContent = q[3];
+        }
+      } catch (err) {
+        console.error("Traffic demo failed:", err);
+      }
+    }
+
+    // Initialize Leaflet map on load
+    window.addEventListener('DOMContentLoaded', () => {
+      initRealMap();
+    });
 
     // Helper: convert vehicles dict {"0": {x,y,...}, "1": ...} to array [{id:0,x,y,...}, ...]
     function vehiclesDictToArray(vDict) {
@@ -1649,6 +2519,11 @@
 
     // --- Master Render Function ---
     function render() {
+      if (mapActiveView === 'real') {
+        updateRealMap();
+        return;
+      }
+
       syncMapLayout();
 
       ctx.clearRect(0, 0, W, H);
@@ -1665,6 +2540,19 @@
       for (let i = 10; i < 100; i += 10) {
         ctx.beginPath(); ctx.moveTo(toX(i), 0); ctx.lineTo(toX(i), H); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, toY(i)); ctx.lineTo(W, toY(i)); ctx.stroke();
+      }
+
+      // Draw traffic corridors on grid canvas if traffic layer is enabled
+      if (showTrafficLayer && trafficModelData && trafficModelData.corridors) {
+        for (const c of trafficModelData.corridors) {
+          const col = c.multiplier >= 3 ? 'rgba(239, 68, 68, 0.5)' : (c.multiplier >= 2 ? 'rgba(249, 115, 22, 0.4)' : 'rgba(16, 185, 129, 0.4)');
+          ctx.strokeStyle = col;
+          ctx.lineWidth = (c.multiplier >= 3 ? 5 : 3) * S;
+          ctx.beginPath();
+          ctx.moveTo(toX(c.x1), toY(c.y1));
+          ctx.lineTo(toX(c.x2), toY(c.y2));
+          ctx.stroke();
+        }
       }
 
       // Quadrant partition lines

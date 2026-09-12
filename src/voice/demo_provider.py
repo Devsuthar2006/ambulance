@@ -3,6 +3,15 @@
 from src.voice.interface import VoiceProvider
 
 DEMO_EMERGENCY_CALLS = [
+    # Traffic Gridlock Bypass Demo (P3 Critical)
+    {
+        "id": "demo_p3_traffic_bypass",
+        "text": "CRITICAL EMERGENCY! 60-year-old male sudden cardiac arrest at 4th and Market Downtown! Not breathing, CPR in progress!",
+        "expected_prio": 3,
+        "type": "CARDIAC",
+        "location": (75.0, 60.0),
+        "is_traffic_demo": True,
+    },
     # Priority 3 Critical Calls
     {
         "id": "demo_p3_bike",

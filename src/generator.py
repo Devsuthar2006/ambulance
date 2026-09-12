@@ -18,7 +18,10 @@ from src.config import (
 from src.models import Vehicle, Incident
 
 
-def generate_world(seed: int = DEFAULT_SEED) -> tuple[list[Vehicle], list[Incident]]:
+def generate_world(
+    seed: int = DEFAULT_SEED,
+    total_incidents: int = TOTAL_INCIDENTS,
+) -> tuple[list[Vehicle], list[Incident]]:
     """Generate vehicles and incidents deterministically from the given seed.
     
     Returns:
@@ -47,9 +50,9 @@ def generate_world(seed: int = DEFAULT_SEED) -> tuple[list[Vehicle], list[Incide
             vehicles.append(v)
             vehicle_id += 1
 
-    # 2. Generate 100 incidents
+    # 2. Generate incidents
     incidents: list[Incident] = []
-    for inc_id in range(TOTAL_INCIDENTS):
+    for inc_id in range(total_incidents):
         arrival_minute = int(rng.integers(INCIDENT_ARRIVAL_MIN, INCIDENT_ARRIVAL_MAX + 1))
         ix = float(rng.uniform(0.0, GRID_WIDTH))
         iy = float(rng.uniform(0.0, GRID_HEIGHT))
