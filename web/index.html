@@ -1652,20 +1652,121 @@
 
       const [splitLat, splitLon] = gridToLatLon(50, 50);
 
-      // Boundary dashed lines
+      // 1. Simulation Service Area Perimeter Border
+      const boundsPoly = [
+        [METRO_BOUNDS.lat_min, METRO_BOUNDS.lon_min],
+        [METRO_BOUNDS.lat_max, METRO_BOUNDS.lon_min],
+        [METRO_BOUNDS.lat_max, METRO_BOUNDS.lon_max],
+        [METRO_BOUNDS.lat_min, METRO_BOUNDS.lon_max],
+      ];
+
+      // Perimeter dark casing + bright cyan border
+      L.polygon(boundsPoly, {
+        color: '#000000',
+        weight: 6,
+        opacity: 0.85,
+        fill: false,
+      }).addTo(quadrantLayersGroup);
+
+      L.polygon(boundsPoly, {
+        color: '#38bdf8',
+        weight: 2.8,
+        dashArray: '10, 8',
+        opacity: 0.95,
+        fill: false,
+      }).addTo(quadrantLayersGroup);
+
+      // 2. High-Visibility Quadrant Partition Cross Lines (Dual Casing for 100% contrast)
+      // N-S Vertical Divider: dark casing + bright cyan dashed core
+      L.polyline([[METRO_BOUNDS.lat_min, splitLon], [METRO_BOUNDS.lat_max, splitLon]], {
+        color: '#020617',
+        weight: 6.5,
+        opacity: 0.9,
+      }).addTo(quadrantLayersGroup);
+
       L.polyline([[METRO_BOUNDS.lat_min, splitLon], [METRO_BOUNDS.lat_max, splitLon]], {
         color: '#38bdf8',
-        weight: 1.5,
-        dashArray: '6, 6',
-        opacity: 0.4,
+        weight: 3.2,
+        dashArray: '12, 8',
+        opacity: 1.0,
+      }).addTo(quadrantLayersGroup);
+
+      // E-W Horizontal Divider: dark casing + bright cyan dashed core
+      L.polyline([[splitLat, METRO_BOUNDS.lon_min], [splitLat, METRO_BOUNDS.lon_max]], {
+        color: '#020617',
+        weight: 6.5,
+        opacity: 0.9,
       }).addTo(quadrantLayersGroup);
 
       L.polyline([[splitLat, METRO_BOUNDS.lon_min], [splitLat, METRO_BOUNDS.lon_max]], {
         color: '#38bdf8',
-        weight: 1.5,
-        dashArray: '6, 6',
-        opacity: 0.4,
+        weight: 3.2,
+        dashArray: '12, 8',
+        opacity: 1.0,
       }).addTo(quadrantLayersGroup);
+
+      // 3. Center Tactical Reticle at (50, 50)
+      const centerReticle = L.divIcon({
+        className: 'quadrant-center-reticle',
+        html: `
+          <div style="
+            width: 28px;
+            height: 28px;
+            margin-left: -14px;
+            margin-top: -14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.92);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 2px 8px rgba(0,0,0,0.8);
+            border-radius: 50%;
+            color: #38bdf8;
+            font-size: 14px;
+            font-weight: 900;
+          ">✚</div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+      L.marker([splitLat, splitLon], { icon: centerReticle, interactive: false, zIndexOffset: 60 }).addTo(quadrantLayersGroup);
+
+      // 4. Sector Watermark Badges on Map
+      const sectorBadges = [
+        { id: 'Q2', name: 'NORTHWEST • Q2', sub: 'Presidio / Richmond', gx: 25, gy: 75, col: '#38bdf8' },
+        { id: 'Q3', name: 'NORTHEAST • Q3', sub: 'Downtown / SOMA', gx: 75, gy: 75, col: '#f59e0b' },
+        { id: 'Q0', name: 'SOUTHWEST • Q0', sub: 'Sunset / Lake Merced', gx: 25, gy: 25, col: '#10b981' },
+        { id: 'Q1', name: 'SOUTHEAST • Q1', sub: 'Mission / Bayview', gx: 75, gy: 25, col: '#a855f7' },
+      ];
+
+      for (const s of sectorBadges) {
+        const [sLat, sLon] = gridToLatLon(s.gx, s.gy);
+        const bIcon = L.divIcon({
+          className: 'quadrant-sector-badge',
+          html: `
+            <div style="
+              background: rgba(15, 23, 42, 0.85);
+              border: 1.5px solid ${s.col};
+              box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+              border-radius: 8px;
+              padding: 5px 12px;
+              color: #fff;
+              font-family: ui-monospace, monospace;
+              text-align: center;
+              pointer-events: none;
+              backdrop-filter: blur(6px);
+              transform: translate(-50%, -50%);
+              white-space: nowrap;
+            ">
+              <div style="font-size: 12px; font-weight: 900; letter-spacing: 0.6px; color: ${s.col};">SECTOR ${s.id}</div>
+              <div style="font-size: 10px; opacity: 0.85; font-weight: 600; color: #cbd5e1;">${s.sub}</div>
+            </div>
+          `,
+          iconSize: [130, 42],
+          iconAnchor: [65, 21],
+        });
+        L.marker([sLat, sLon], { icon: bIcon, interactive: false, zIndexOffset: 45 }).addTo(quadrantLayersGroup);
+      }
     }
 
     async function fetchTrafficData() {
@@ -2756,30 +2857,17 @@
         ctx.beginPath(); ctx.moveTo(0, toY(i)); ctx.lineTo(W, toY(i)); ctx.stroke();
       }
 
-      // Draw traffic corridors on grid canvas if traffic layer is enabled
-      if (showTrafficLayer && trafficModelData && trafficModelData.corridors) {
-        for (const c of trafficModelData.corridors) {
-          const col = c.multiplier >= 3 ? 'rgba(239, 68, 68, 0.5)' : (c.multiplier >= 2 ? 'rgba(249, 115, 22, 0.4)' : 'rgba(16, 185, 129, 0.4)');
-          ctx.strokeStyle = col;
-          ctx.lineWidth = (c.multiplier >= 3 ? 5 : 3) * S;
-          ctx.beginPath();
-          ctx.moveTo(toX(c.x1), toY(c.y1));
-          ctx.lineTo(toX(c.x2), toY(c.y2));
-          ctx.stroke();
-        }
-      }
-
       // Quadrant partition lines
-      ctx.strokeStyle = '#2c3a58';
-      ctx.lineWidth = 1.8 * S;
-      ctx.setLineDash([8 * S, 6 * S]);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.4 * S;
+      ctx.setLineDash([10 * S, 8 * S]);
       ctx.beginPath(); ctx.moveTo(toX(50), 0); ctx.lineTo(toX(50), H); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, toY(50)); ctx.lineTo(W, toY(50)); ctx.stroke();
       ctx.setLineDash([]);
 
       // Quadrant sector watermark labels
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.12)';
-      ctx.font = '900 ' + Math.round(26 * S) + 'px sans-serif';
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+      ctx.font = '900 ' + Math.round(28 * S) + 'px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('Q2 (NW)', toX(25), toY(75));
       ctx.fillText('Q3 (NE)', toX(75), toY(75));
