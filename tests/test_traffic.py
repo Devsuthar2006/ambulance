@@ -107,3 +107,46 @@ def test_simulator_with_traffic():
     for inc in assigned:
         assert inc.reached_minute is not None
         assert inc.reached_minute >= inc.assigned_minute
+
+
+def test_haversine_and_bearing():
+    """Verify haversine distance and compass bearing calculations."""
+    from src.traffic import haversine_distance, compute_bearing
+
+    # 1 degree latitude ~ 111 km
+    d = haversine_distance(37.75, -122.44, 37.76, -122.44)
+    assert 1000.0 < d < 1200.0
+
+    # Bearing due North should be 0 deg
+    b_north = compute_bearing(37.75, -122.44, 37.76, -122.44)
+    assert abs(b_north - 0.0) < 1.0
+
+    # Bearing due East should be 90 deg
+    b_east = compute_bearing(37.75, -122.44, 37.75, -122.43)
+    assert abs(b_east - 90.0) < 1.0
+
+
+def test_road_router_and_interpolation():
+    """Verify road router returns realistic waypoints and smooth polyline interpolation."""
+    from src.traffic import get_default_road_router, interpolate_road_polyline, generate_street_grid_route
+
+    router = get_default_road_router()
+    # Test grid coordinate route
+    waypoints = router.get_route_between_grid_points(25.0, 30.0, 75.0, 65.0)
+    assert len(waypoints) >= 2
+
+    # Test interpolation
+    p0 = interpolate_road_polyline(waypoints, 0.0)
+    p50 = interpolate_road_polyline(waypoints, 0.5)
+    p100 = interpolate_road_polyline(waypoints, 1.0)
+
+    assert abs(p0[0] - waypoints[0][0]) < 1e-4
+    assert abs(p100[0] - waypoints[-1][0]) < 1e-4
+    # Heading should be valid angle 0..360
+    assert 0.0 <= p50[2] <= 360.0
+
+    # Test fallback street grid generator
+    grid_route = generate_street_grid_route(37.75, -122.44, 37.78, -122.40)
+    assert len(grid_route) >= 3
+    assert grid_route[0] == (37.75, -122.44)
+    assert grid_route[-1] == (37.78, -122.40)

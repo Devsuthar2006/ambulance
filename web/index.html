@@ -1439,6 +1439,130 @@
     let currentBaseTileLayer = null;
     let googleTrafficTileLayer = null;
 
+    // --- Road Network Navigation & Turn-by-Turn Engine ---
+    const clientRouteCache = new Map();
+
+    function haversineDistM(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const phi1 = (lat1 * Math.PI) / 180;
+      const phi2 = (lat2 * Math.PI) / 180;
+      const dphi = ((lat2 - lat1) * Math.PI) / 180;
+      const dlam = ((lon2 - lon1) * Math.PI) / 180;
+      const a = Math.sin(dphi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlam / 2) ** 2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function computeBearingDeg(lat1, lon1, lat2, lon2) {
+      const phi1 = (lat1 * Math.PI) / 180;
+      const phi2 = (lat2 * Math.PI) / 180;
+      const dlam = ((lon2 - lon1) * Math.PI) / 180;
+      const y = Math.sin(dlam) * Math.cos(phi2);
+      const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dlam);
+      const deg = (Math.atan2(y, x) * 180) / Math.PI;
+      return (deg + 360) % 360;
+    }
+
+    function generateClientStreetRoute(startLat, startLon, destLat, destLon) {
+      const pts = [[startLat, startLon]];
+      const dlat = destLat - startLat;
+      const dlon = destLon - startLon;
+
+      const inMarket = Math.min(startLat, destLat) >= 37.74 && Math.max(startLat, destLat) <= 37.80 &&
+                       Math.min(startLon, destLon) >= -122.44 && Math.max(startLon, destLon) <= -122.39;
+
+      if (inMarket && Math.abs(dlat) > 0.008 && Math.abs(dlon) > 0.008) {
+        const midLat = startLat + 0.5 * dlat;
+        const midLon = startLon + 0.5 * dlon;
+        pts.push([startLat, midLon]);
+        pts.push([midLat, midLon]);
+        pts.push([midLat, destLon]);
+        pts.push([destLat, destLon]);
+      } else {
+        const steps = 4;
+        let curLa = startLat, curLo = startLon;
+        for (let s = 1; s < steps; s++) {
+          const frac = s / steps;
+          if (s % 2 === 1) curLo = startLon + frac * dlon;
+          else curLa = startLat + frac * dlat;
+          pts.push([curLa, curLo]);
+        }
+        pts.push([destLat, destLon]);
+      }
+      return pts;
+    }
+
+    function getOrFetchRoadRoute(startLat, startLon, destLat, destLon, preloadedWaypoints = null) {
+      if (preloadedWaypoints && Array.isArray(preloadedWaypoints) && preloadedWaypoints.length >= 2) {
+        return preloadedWaypoints;
+      }
+      const key = `${startLat.toFixed(4)},${startLon.toFixed(4)}->${destLat.toFixed(4)},${destLon.toFixed(4)}`;
+      if (clientRouteCache.has(key)) {
+        return clientRouteCache.get(key);
+      }
+      const synthetic = generateClientStreetRoute(startLat, startLon, destLat, destLon);
+      clientRouteCache.set(key, synthetic);
+
+      // Async upgrade to turn-by-turn OSRM road geometry
+      fetch(`/api/route?start_lat=${startLat}&start_lon=${startLon}&dest_lat=${destLat}&dest_lon=${destLon}`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.status === 'ok' && res.waypoints && res.waypoints.length >= 2) {
+            clientRouteCache.set(key, res.waypoints);
+          }
+        })
+        .catch(() => {});
+
+      return synthetic;
+    }
+
+    function getPointAlongPolyline(waypoints, frac) {
+      if (!waypoints || waypoints.length === 0) {
+        return { lat: 37.7575, lon: -122.4450, heading: 0, remainingSlice: [] };
+      }
+      if (waypoints.length === 1 || frac <= 0.0) {
+        return { lat: waypoints[0][0], lon: waypoints[0][1], heading: 0, remainingSlice: waypoints };
+      }
+      if (frac >= 1.0) {
+        const last = waypoints[waypoints.length - 1];
+        const prev = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : last;
+        const h = computeBearingDeg(prev[0], prev[1], last[0], last[1]);
+        return { lat: last[0], lon: last[1], heading: h, remainingSlice: [last] };
+      }
+
+      let totalDist = 0;
+      const segLens = [];
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const d = haversineDistM(waypoints[i][0], waypoints[i][1], waypoints[i + 1][0], waypoints[i + 1][1]);
+        segLens.push(d);
+        totalDist += d;
+      }
+
+      if (totalDist <= 1e-4) {
+        return { lat: waypoints[0][0], lon: waypoints[0][1], heading: 0, remainingSlice: waypoints };
+      }
+
+      const targetDist = frac * totalDist;
+      let acc = 0;
+
+      for (let i = 0; i < segLens.length; i++) {
+        const len = segLens[i];
+        if (acc + len >= targetDist || i === segLens.length - 1) {
+          const segFrac = len > 1e-4 ? Math.max(0, Math.min(1, (targetDist - acc) / len)) : 0;
+          const p1 = waypoints[i];
+          const p2 = waypoints[i + 1];
+          const curLat = p1[0] + segFrac * (p2[0] - p1[0]);
+          const curLon = p1[1] + segFrac * (p2[1] - p1[1]);
+          const heading = computeBearingDeg(p1[0], p1[1], p2[0], p2[1]);
+          const remainingSlice = [[curLat, curLon], ...waypoints.slice(i + 1)];
+          return { lat: curLat, lon: curLon, heading, remainingSlice };
+        }
+        acc += len;
+      }
+
+      const last = waypoints[waypoints.length - 1];
+      return { lat: last[0], lon: last[1], heading: 0, remainingSlice: [last] };
+    }
+
     function initRealMap() {
       if (realMap) return;
       const container = document.getElementById('realMapContainer');
@@ -1681,28 +1805,41 @@
           activeIncIds.add(inc.id);
 
           const elapsedSec = (now - call.startTime) / 1000.0;
-          const travelDurationSec = Math.max(3.0, Math.min(8.0, veh.travel_time * 0.35));
+          const travelDurationSec = Math.max(5.0, Math.min(10.0, veh.travel_time * 0.45));
           const isArrived = elapsedSec >= travelDurationSec;
           const frac = Math.min(1.0, elapsedSec / travelDurationSec);
 
-          const curX = veh.start_x + frac * (veh.dest_x - veh.start_x);
-          const curY = veh.start_y + frac * (veh.dest_y - veh.start_y);
-          const [curLat, curLon] = gridToLatLon(curX, curY);
+          const [startLat, startLon] = gridToLatLon(veh.start_x, veh.start_y);
           const [incLat, incLon] = gridToLatLon(inc.x, inc.y);
-          const heading = Math.atan2(toY(veh.dest_y) - toY(veh.start_y), toX(veh.dest_x) - toX(veh.start_x));
+          const roadWaypoints = getOrFetchRoadRoute(startLat, startLon, incLat, incLon, veh.road_geometry);
+
+          const curPos = getPointAlongPolyline(roadWaypoints, frac);
           const status = isArrived ? 'servicing' : 'traveling';
           const remainingTravelMin = Math.max(0, (1 - frac) * veh.travel_time);
 
-          // Route trajectory
-          const routeColor = inc.priority === 3 ? '#ef4444' : '#38bdf8';
-          L.polyline([[curLat, curLon], [incLat, incLon]], {
-            color: routeColor,
-            weight: 3.5,
-            dashArray: '6, 6',
-            opacity: 0.9,
-          }).addTo(routeLayersGroup);
+          // Real turn-by-turn road trajectory on Google Maps
+          const routeColor = inc.priority === 3 ? '#ef4444' : '#0284c7';
+          if (!isArrived && curPos.remainingSlice && curPos.remainingSlice.length >= 2) {
+            // Road corridor outer casing
+            L.polyline(curPos.remainingSlice, {
+              color: routeColor,
+              weight: 5.5,
+              opacity: 0.85,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }).addTo(routeLayersGroup);
 
-          setOrUpdateAmbulanceMarker(veh.id, curLat, curLon, status, heading, frac, 1.0, remainingTravelMin);
+            // Inner directional highlight dash
+            L.polyline(curPos.remainingSlice, {
+              color: '#ffffff',
+              weight: 2.2,
+              opacity: 0.9,
+              dashArray: '6, 6',
+              lineCap: 'round',
+            }).addTo(routeLayersGroup);
+          }
+
+          setOrUpdateAmbulanceMarker(veh.id, curPos.lat, curPos.lon, status, curPos.heading, frac, 1.0, remainingTravelMin);
           setOrUpdateIncidentMarker(inc.id, incLat, incLon, inc.priority, isArrived, remainingTravelMin);
         }
 
@@ -1721,16 +1858,23 @@
         for (let vId = 0; vId < 20; vId++) {
           const init = trace.vehicles[vId];
           if (!init) continue;
-          let vx = init.x, vy = init.y, status = 'idle', target = null, heading = 0, progress = 0;
+          let vLat = 0, vLon = 0, status = 'idle', target = null, heading = 0, progress = 0;
           let isAllocated = false;
 
           const assignments = trace.vehicle_assignments[String(vId)] || trace.vehicle_assignments[vId] || [];
+          if (assignments.length === 0) {
+            const [initLat, initLon] = gridToLatLon(init.x, init.y);
+            vLat = initLat;
+            vLon = initLon;
+          }
+
           for (const a of assignments) {
             if (a.assigned_minute > simTime) break;
             isAllocated = true;
             if (a.completed_minute <= simTime) {
-              vx = a.dest_x;
-              vy = a.dest_y;
+              const [destLat, destLon] = gridToLatLon(a.dest_x, a.dest_y);
+              vLat = destLat;
+              vLon = destLon;
               status = 'idle';
               target = null;
             } else {
@@ -1739,13 +1883,32 @@
                 status = 'traveling';
                 const duration = Math.max(1e-4, a.reached_minute - a.assigned_minute);
                 const frac = Math.min(1.0, Math.max(0.0, (simTime - a.assigned_minute) / duration));
-                vx = a.start_x + frac * (a.dest_x - a.start_x);
-                vy = a.start_y + frac * (a.dest_y - a.start_y);
-                heading = Math.atan2(toY(a.dest_y) - toY(a.start_y), toX(a.dest_x) - toX(a.start_x));
+
+                const [startLat, startLon] = gridToLatLon(a.start_x, a.start_y);
+                const [destLat, destLon] = gridToLatLon(a.dest_x, a.dest_y);
+                const roadWaypoints = getOrFetchRoadRoute(startLat, startLon, destLat, destLon, a.road_geometry);
+                const curPos = getPointAlongPolyline(roadWaypoints, frac);
+
+                vLat = curPos.lat;
+                vLon = curPos.lon;
+                heading = curPos.heading;
+
+                if (curPos.remainingSlice && curPos.remainingSlice.length >= 2) {
+                  const inc = trace.incidents.find(i => i.id === target);
+                  const routeColor = (inc && inc.priority === 3) ? '#ef4444' : '#0284c7';
+                  L.polyline(curPos.remainingSlice, {
+                    color: routeColor,
+                    weight: 4.5,
+                    opacity: 0.85,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }).addTo(routeLayersGroup);
+                }
               } else {
                 status = 'servicing';
-                vx = a.dest_x;
-                vy = a.dest_y;
+                const [destLat, destLon] = gridToLatLon(a.dest_x, a.dest_y);
+                vLat = destLat;
+                vLon = destLon;
                 progress = Math.min(1.0, (simTime - a.reached_minute) / 8.0);
               }
               break;
@@ -1755,21 +1918,7 @@
           if (fleetFilter === 'dynamic' && !isAllocated) continue;
 
           activeVehIds.add(vId);
-          const [vLat, vLon] = gridToLatLon(vx, vy);
           setOrUpdateAmbulanceMarker(vId, vLat, vLon, status, heading, progress, status === 'idle' ? 0.7 : 1.0);
-
-          if (status === 'traveling' && target !== null) {
-            const inc = trace.incidents.find(i => i.id === target);
-            if (inc) {
-              const [incLat, incLon] = gridToLatLon(inc.x, inc.y);
-              L.polyline([[vLat, vLon], [incLat, incLon]], {
-                color: inc.priority === 3 ? '#ef4444' : '#38bdf8',
-                weight: 3.5,
-                dashArray: '6, 6',
-                opacity: 0.85,
-              }).addTo(routeLayersGroup);
-            }
-          }
         }
 
         for (const inc of trace.incidents) {
@@ -1788,9 +1937,13 @@
     function setOrUpdateAmbulanceMarker(id, lat, lon, status, heading, progress, opacity, etaMin = null) {
       let m = ambulanceMarkersMap.get(id);
       const color = status === 'traveling' ? '#0284c7' : (status === 'servicing' ? '#eab308' : '#10b981');
-      const headingDeg = Math.round((heading * 180) / Math.PI);
+      const headingDeg = Math.round(Math.abs(heading) <= 2 * Math.PI ? (heading * 180) / Math.PI : heading);
       const etaHtml = (status === 'traveling' && etaMin !== null && etaMin > 0)
         ? `<div class="amb-eta-tag">ETA ${etaMin.toFixed(1)}m</div>` : '';
+
+      const iconContent = status === 'traveling'
+        ? `<div class="amb-nav-arrow" style="font-size: 13px; font-weight: 900; color: #fff; transform: rotate(${headingDeg}deg); line-height: 1;">▲</div>`
+        : `🚑`;
 
       if (!m) {
         const icon = L.divIcon({
@@ -1798,8 +1951,8 @@
           html: `
             <div class="amb-marker-wrapper" id="amb_m_${id}">
               <div class="amb-beacon-ring ${status === 'traveling' ? 'active' : ''}"></div>
-              <div class="amb-icon-chassis" style="background: ${color}; transform: rotate(${headingDeg}deg);">
-                🚑
+              <div class="amb-icon-chassis" style="background: ${color};">
+                ${iconContent}
               </div>
               <div class="amb-id-badge">#${id}</div>
               ${etaHtml}
@@ -1818,7 +1971,7 @@
           const chassis = el.querySelector('.amb-icon-chassis');
           if (chassis) {
             chassis.style.background = color;
-            chassis.style.transform = `rotate(${headingDeg}deg)`;
+            chassis.innerHTML = iconContent;
           }
           const beacon = el.querySelector('.amb-beacon-ring');
           if (beacon) {
@@ -2008,6 +2161,25 @@
             explanation: data.explanation,
             startTime: performance.now(),
           });
+
+          // Also visualize the rejected candidate trapped in downtown gridlock
+          if (exp && exp.candidates) {
+            const trappedCand = exp.candidates.find(c => c.traffic_multiplier >= 2.0 && c.vehicle_id !== data.vehicle.id);
+            if (trappedCand && liveFleetState && liveFleetState.vehicles) {
+              const trappedVeh = liveFleetState.vehicles.find(v => v.id === trappedCand.vehicle_id);
+              if (trappedVeh) {
+                const [trLat, trLon] = gridToLatLon(trappedVeh.x, trappedVeh.y);
+                const [tgtLat, tgtLon] = gridToLatLon(data.incident.x, data.incident.y);
+                const trappedRoute = getOrFetchRoadRoute(trLat, trLon, tgtLat, tgtLon);
+                L.polyline(trappedRoute, {
+                  color: '#ef4444',
+                  weight: 4,
+                  dashArray: '6, 8',
+                  opacity: 0.85,
+                }).addTo(routeLayersGroup);
+              }
+            }
+          }
         }
 
         showTrafficDecisionHud(data);

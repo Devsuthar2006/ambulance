@@ -8,34 +8,31 @@ from src.config import DEFAULT_SEED, DEFAULT_COVERAGE_PENALTY
 from src.generator import generate_world
 from src.dispatcher import NaiveDispatcher, CoverageAwareDispatcher
 from src.simulator import Simulator
-from src.traffic import get_default_traffic_model
+from src.traffic import get_default_traffic_model, get_default_road_router
 
 
 def build_simulation_trace(dispatcher, vehicles_init, incidents_init, traffic_model=None):
     """Run simulation and collect full assignment paths, events, and timeline states."""
     sim = Simulator(dispatcher=dispatcher, traffic_model=traffic_model)
     res = sim.run(vehicles_init, incidents_init)
+    router = get_default_road_router()
 
     # Initial vehicle map
     veh_initial = {v.id: {"x": round(float(v.x), 2), "y": round(float(v.y), 2), "quadrant": v.quadrant} for v in vehicles_init}
 
     # Build per-vehicle assignment history
-    # PRD §3 guarantee: each incident has exactly one assigned_vehicle_id.
-    # We sort globally by (assigned_minute, incident_id) then group per vehicle,
-    # ensuring each vehicle's list is in strict chronological order.
     veh_assignments: dict[int, list] = {v.id: [] for v in vehicles_init}
 
     assigned_incs = [inc for inc in res.incidents if inc.assigned_vehicle_id is not None]
-    # Sort globally so grouping preserves causal order within each vehicle
     assigned_incs.sort(key=lambda inc: (inc.assigned_minute, inc.id))
 
-    # Track current resting position per vehicle (starts at initial base)
     veh_current_pos = {v.id: (v.x, v.y) for v in vehicles_init}
 
     for inc in assigned_incs:
         v_id = inc.assigned_vehicle_id
         start_x, start_y = veh_current_pos[v_id]
         dest_x, dest_y = inc.x, inc.y
+        road_geom = router.get_route_between_grid_points(start_x, start_y, dest_x, dest_y, use_osrm=False)
 
         veh_assignments[v_id].append({
             "incident_id": inc.id,
@@ -43,12 +40,12 @@ def build_simulation_trace(dispatcher, vehicles_init, incidents_init, traffic_mo
             "start_y": round(float(start_y), 2),
             "dest_x": round(float(dest_x), 2),
             "dest_y": round(float(dest_y), 2),
+            "road_geometry": road_geom,
             "assigned_minute": round(float(inc.assigned_minute), 2),
             "reached_minute": round(float(inc.reached_minute), 2),
             "completed_minute": round(float(inc.completed_minute), 2),
             "priority": inc.priority,
         })
-        # After completing service, vehicle rests at incident site (PRD §3: idles at incident location)
         veh_current_pos[v_id] = (dest_x, dest_y)
 
     # Guarantee each vehicle's own list is in strict chronological order

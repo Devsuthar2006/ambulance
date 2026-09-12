@@ -23,7 +23,7 @@ from src.voice.phone_provider import PhoneWebhookProvider
 from src.events.event_bus import EventBus, SimulationEvent, EventType
 from src.scenarios import ScenarioRunner
 from src.risk.risk_engine import RiskEngine
-from src.traffic import get_default_traffic_model
+from src.traffic import get_default_traffic_model, get_default_road_router
 
 app = FastAPI(
     title="RESQAI — Real-Time Emergency Response Intelligence Platform",
@@ -48,6 +48,7 @@ phone_voice = PhoneWebhookProvider()
 scenario_runner = ScenarioRunner()
 risk_engine = RiskEngine()
 traffic_model = get_default_traffic_model()
+road_router = get_default_road_router()
 
 # Dispatch lock — prevents concurrent requests from assigning the same vehicle
 # to two different incidents (PRD §3: each incident gets exactly one vehicle)
@@ -245,12 +246,16 @@ async def handle_voice_call(request: Request):
                 v.busy_until = completed_time
                 _dispatched_incident_ids.add(inc.id)
 
+                start_x, start_y = v.x, v.y
+                road_geom = road_router.get_route_between_grid_points(start_x, start_y, inc.x, inc.y)
+
                 vehicle_dict = {
                     "id": v.id,
-                    "start_x": v.x,
-                    "start_y": v.y,
+                    "start_x": start_x,
+                    "start_y": start_y,
                     "dest_x": inc.x,
                     "dest_y": inc.y,
+                    "road_geometry": road_geom,
                     "raw_distance": round(dist, 2),
                     "traffic_multiplier": round(traffic_mult, 2),
                     "travel_time": round(travel_time, 2),
@@ -353,6 +358,32 @@ async def get_live_state():
 async def get_traffic_state():
     """Return traffic model zones, corridors, bounds, and GeoJSON for real map display."""
     return traffic_model.to_dict()
+
+
+@app.get("/api/route")
+async def get_route(
+    start_x: float | None = None,
+    start_y: float | None = None,
+    dest_x: float | None = None,
+    dest_y: float | None = None,
+    start_lat: float | None = None,
+    start_lon: float | None = None,
+    dest_lat: float | None = None,
+    dest_lon: float | None = None,
+):
+    """Return turn-by-turn road geometry following real city streets and highways."""
+    if start_x is not None and start_y is not None and dest_x is not None and dest_y is not None:
+        waypoints = road_router.get_route_between_grid_points(start_x, start_y, dest_x, dest_y)
+    elif start_lat is not None and start_lon is not None and dest_lat is not None and dest_lon is not None:
+        waypoints = road_router.get_route(start_lat, start_lon, dest_lat, dest_lon)
+    else:
+        return JSONResponse({"status": "error", "message": "Missing start and destination coordinates"}, status_code=400)
+
+    return {
+        "status": "ok",
+        "waypoints": waypoints,
+        "count": len(waypoints),
+    }
 
 
 @app.post("/api/scenarios/run")
