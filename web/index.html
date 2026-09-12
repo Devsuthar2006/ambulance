@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RESQAI — Real-Time Emergency Response Intelligence Platform</title>
+  <style>
+    :root {
+      --bg-base: #070b14;
+      --bg-panel: #0f172a;
+      --bg-card: #182238;
+      --bg-card-hover: #22304e;
+      --border: #25334d;
+      --border-bright: #3b82f6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.3);
+      
+      --prio-1: #64748b;
+      --prio-2: #f97316;
+      --prio-3: #ef4444;
+      --prio-3-glow: rgba(239, 68, 68, 0.4);
+      
+      --idle-col: #10b981;
+      --travel-col: #0284c7;
+      --service-col: #eab308;
+      --danger: #f43f5e;
+      --danger-bg: rgba(244, 63, 94, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      font-size: 1.5rem;
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+    }
+
+    .brand-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-sub {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .mode-nav {
+      display: flex;
+      flex-wrap: wrap;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+    }
+
+    .mode-btn {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .mode-btn.active {
+      background: #0284c7;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .stat-pill {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .stat-pill .lbl {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .stat-pill .val {
+      font-size: 1.05rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .val.alert { color: var(--danger); }
+    .val.good { color: var(--idle-col); }
+
+    /* Layout */
+    /* Layout */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    /* Left Center: Viewport & Map Stage */
+    /* Left Center: Viewport & Map Stage */
+    .viewport {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      padding: 8px 14px;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at center, #0f172a 0%, var(--bg-base) 100%);
+    }
+
+    .map-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      height: 100%;
+      width: 100%;
+      max-width: 100%;
+      min-height: 0;
+      gap: 6px;
+    }
+
+    .canvas-container {
+      position: relative;
+      background: #060911;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 12px;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Quadrant Status Overlays */
+    .quad-badge {
+      position: absolute;
+      padding: 5px 10px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      z-index: 5;
+      white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    }
+
+    .quad-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--idle-col);
+      box-shadow: 0 0 6px var(--idle-col);
+    }
+
+    .quad-badge.outage {
+      background: rgba(239, 68, 68, 0.9);
+      border-color: #ef4444;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
+      animation: alertPulse 1s infinite alternate;
+    }
+
+    .quad-badge.outage .dot { background: #fff; box-shadow: 0 0 8px #fff; }
+
+    #quadQ2 { top: 10px; left: 10px; }
+    #quadQ3 { top: 10px; right: 10px; }
+    #quadQ0 { bottom: 10px; left: 10px; }
+    #quadQ1 { bottom: 10px; right: 10px; }
+
+    /* Map Top Bar & Dynamic Fleet Filter */
+    .map-top-bar {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      transition: max-width 0.15s ease;
+    }
+
+    .fleet-filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 3px;
+    }
+
+    .filter-chip {
+      padding: 4px 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .filter-chip:hover {
+      color: #fff;
+    }
+
+    .filter-chip.active {
+      background: #0284c7;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .fleet-status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .status-pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: alertPulse 1.5s infinite alternate;
+    }
+
+    /* Timeline Playback Bar */
+    .timeline-bar {
+      width: 100%;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+      flex-shrink: 0;
+      transition: max-width 0.15s ease;
+    }
+
+    .timeline-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .time-readout {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: var(--accent);
+      width: 100px;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    .timeline-slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 6px;
+      min-width: 0;
+    }
+
+    .timeline-ctrl-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .btn {
+      padding: 4px 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--bg-card-hover);
+      border-color: #38bdf8;
+    }
+
+    .btn.primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #fff;
+    }
+
+    .speed-btn {
+      padding: 4px 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .speed-btn.active {
+      background: #334155;
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Right Sidebar */
+    .sidebar {
+      width: 380px;
+      min-width: 320px;
+      max-width: 420px;
+      flex-shrink: 0;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .panel-section {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .section-header {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Voice Intake Card */
+    .voice-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .voice-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .preset-chip {
+      padding: 3px 7px;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+      border-radius: 4px;
+      font-size: 0.67rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .preset-chip:hover {
+      background: #334155;
+      border-color: var(--accent);
+    }
+
+    .voice-input-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .voice-input-box input {
+      width: 100%;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+    }
+
+    .voice-input-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .voice-btn-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .mic-btn {
+      padding: 6px 11px;
+      background: #dc2626;
+      border: none;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .mic-btn.recording {
+      animation: alertPulse 0.8s infinite alternate;
+      background: #b91c1c;
+    }
+
+    /* AI Triage Card */
+    .triage-display {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .triage-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .prio-badge {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .prio-badge.p3 { background: rgba(239, 68, 68, 0.2); color: var(--prio-3); border: 1px solid var(--prio-3); }
+    .prio-badge.p2 { background: rgba(249, 115, 22, 0.2); color: var(--prio-2); border: 1px solid var(--prio-2); }
+    .prio-badge.p1 { background: rgba(100, 116, 139, 0.2); color: var(--prio-1); border: 1px solid var(--prio-1); }
+
+    .confidence-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--idle-col);
+      white-space: nowrap;
+    }
+
+    .evidence-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .ev-chip {
+      background: rgba(2, 132, 199, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #bae6fd;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* Decision Explanation Card */
+    .decision-card {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .decision-card.highlight {
+      border-color: #38bdf8;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .decision-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .selected-unit {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #38bdf8;
+      white-space: nowrap;
+    }
+
+    .strat-badge {
+      font-size: 0.64rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #0369a1;
+      color: #e0f2fe;
+      white-space: nowrap;
+    }
+
+    .decision-reason {
+      font-size: 0.74rem;
+      line-height: 1.35;
+      color: #f1f5f9;
+      background: #0f172a;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border-left: 3px solid #38bdf8;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-top: 4px;
+    }
+
+    .table-container::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .table-container::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .candidate-table {
+      width: 100%;
+      min-width: 300px;
+      border-collapse: collapse;
+      font-size: 0.66rem;
+      white-space: nowrap;
+    }
+
+    .candidate-table th {
+      text-align: left;
+      padding: 3px 5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+    }
+
+    .candidate-table td {
+      padding: 3px 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .candidate-table tr.selected {
+      background: rgba(56, 189, 248, 0.12);
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    /* What-If Scenarios Grid */
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .scenario-btn {
+      padding: 5px 6px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .scenario-btn:hover {
+      background: var(--bg-card-hover);
+      color: #fff;
+    }
+
+    .scenario-btn.active {
+      background: #0369a1;
+      color: #fff;
+      border-color: #38bdf8;
+    }
+
+    /* Radio Feed */
+    .radio-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      max-height: 180px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+      min-width: 0;
+    }
+
+    .radio-item {
+      padding: 5px 8px;
+      background: var(--bg-card);
+      border-radius: 6px;
+      border-left: 3px solid #64748b;
+      font-size: 0.70rem;
+      line-height: 1.3;
+      display: flex;
+      gap: 6px;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      min-width: 0;
+    }
+
+    .radio-item.critical { border-left-color: var(--prio-3); background: rgba(239, 68, 68, 0.08); }
+    .radio-item.dispatch { border-left-color: var(--accent); }
+    .radio-item.warning { border-left-color: var(--prio-2); }
+    .radio-item.danger { border-left-color: var(--danger); background: var(--danger-bg); }
+    .radio-item.success { border-left-color: var(--idle-col); }
+
+    .radio-time {
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 34px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 1100px) {
+      header {
+        padding: 6px 10px;
+      }
+      .brand h1 {
+        font-size: 1rem;
+      }
+      .mode-btn {
+        padding: 4px 7px;
+        font-size: 0.66rem;
+      }
+      .header-stats {
+        gap: 8px;
+      }
+      .stat-pill .val {
+        font-size: 0.92rem;
+      }
+      .sidebar {
+        width: 340px;
+        min-width: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🚑</div>
+      <div class="brand-title">
+        <h1>RESQAI COMMAND CENTER</h1>
+        <div class="brand-sub">Real-Time Emergency Response Intelligence • Seed 20260911</div>
+      </div>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="mode-nav">
+      <button class="mode-btn active" id="btnModeA" onclick="setMode('A')">Mode A: Live Voice</button>
+      <button class="mode-btn" id="btnModeB" onclick="setMode('B')">Mode B: 50-Call Sim</button>
+      <button class="mode-btn" id="btnModeC" onclick="setMode('C')">Mode C: Official Benchmark</button>
+      <button class="mode-btn" id="btnModeD" onclick="setMode('D')">Mode D: What-If Stress Test</button>
+    </div>
+
+    <div class="header-stats">
+      <div class="stat-pill">
+        <span class="lbl">Weighted RT</span>
+        <span class="val" id="statWeightedRT">—</span>
+      </div>
+      <div class="stat-pill">
+        <span class="lbl">P3 (Critical) RT</span>
+        <span class="val" id="statP3RT">—</span>
+      </div>
+      <div class="stat-pill">
+        <span class="lbl">Sector Outages</span>
+        <span class="val" id="statOutages">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="app-body">
+    <!-- Viewport Area -->
+    <div class="viewport">
+      <div class="map-stage" id="mapStage">
+        <!-- Top Dynamic Fleet Filter Bar & Algorithm Switcher -->
+        <div class="map-top-bar" id="mapTopBar">
+          <div class="fleet-filter-group">
+            <button class="filter-chip active" id="btnFilterAll" onclick="setFleetFilter('all')">
+              🛡️ Coverage Readiness (Allocated + Standby)
+            </button>
+            <button class="filter-chip" id="btnFilterDynamic" onclick="setFleetFilter('dynamic')">
+              ⚡ Dispatched Only
+            </button>
+          </div>
+
+          <div class="fleet-filter-group" style="background: rgba(15, 23, 42, 0.9);">
+            <button class="filter-chip active" id="btnPolicyCov" onclick="setPolicy('coverage_aware')">
+              🛡️ Coverage-Aware (Our Algo)
+            </button>
+            <button class="filter-chip" id="btnPolicyNaive" onclick="setPolicy('naive')">
+              ⚠️ Naive Nearest (Baseline)
+            </button>
+          </div>
+
+          <div class="fleet-status-pill" id="fleetStatusPill">
+            <span class="status-pulse-dot" id="statusDot"></span>
+            <span id="fleetStatusText">STANDBY • ALL QUADRANTS READY (20 UNITS)</span>
+          </div>
+        </div>
+
+        <div class="canvas-container" id="canvasContainer">
+          <canvas id="simCanvas" width="800" height="800"></canvas>
+
+          <!-- Quadrant Badges Overlaid Directly on Map -->
+          <div class="quad-badge" id="quadQ2">
+            <div class="dot"></div>
+            <span>Q2 (Upper-Left): <strong id="q2Count">5</strong> Idle</span>
+          </div>
+          <div class="quad-badge" id="quadQ3">
+            <div class="dot"></div>
+            <span>Q3 (Upper-Right): <strong id="q3Count">5</strong> Idle</span>
+          </div>
+          <div class="quad-badge" id="quadQ0">
+            <div class="dot"></div>
+            <span>Q0 (Lower-Left): <strong id="q0Count">5</strong> Idle</span>
+          </div>
+          <div class="quad-badge" id="quadQ1">
+            <div class="dot"></div>
+            <span>Q1 (Lower-Right): <strong id="q1Count">5</strong> Idle</span>
+          </div>
+        </div>
+
+        <!-- Timeline & Controls -->
+        <div class="timeline-bar" id="timelineBar">
+          <div class="timeline-slider-row">
+            <div class="time-readout" id="timeReadout">t = 0.00 min</div>
+            <input type="range" id="timeSlider" min="0" max="120" step="0.05" value="0" />
+          </div>
+
+          <div class="timeline-ctrl-row">
+            <div class="btn-group">
+              <button class="btn primary" id="btnPlay" onclick="togglePlay()">
+                <span id="playIcon">▶</span> <span id="playLabel">Play</span>
+              </button>
+              <button class="btn" id="btnNextCall" onclick="jumpToNextCall()" title="Jump to Next Emergency Call Arrival">
+                +1 Call ⏭
+              </button>
+              <button class="btn" onclick="step(-1)">◀ -1m</button>
+              <button class="btn" onclick="step(1)">+1m ▶</button>
+              <button class="btn" onclick="seek(0)">↺ Reset</button>
+            </div>
+
+            <div class="btn-group">
+              <button class="speed-btn" onclick="setSpeed(0.5)">0.5x</button>
+              <button class="speed-btn active" onclick="setSpeed(1)">1x</button>
+              <button class="speed-btn" onclick="setSpeed(2)">2x</button>
+              <button class="speed-btn" onclick="setSpeed(5)">5x</button>
+              <button class="speed-btn" onclick="setSpeed(10)">10x</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Control & Intelligence Sidebar -->
+    <div class="sidebar">
+
+      <!-- Section 1: Voice Intake & AI Triage Station (Mode A) -->
+      <div class="panel-section" id="voiceSection">
+        <div class="section-header">
+          <span>Voice Intake &amp; AI Triage Station</span>
+          <span style="color: var(--accent);">Live Triage</span>
+        </div>
+        
+        <div class="voice-box">
+          <div style="font-size: 0.68rem; color: var(--text-muted);">
+            Judge Demo Call Presets (or speak into your microphone):
+          </div>
+          <div class="voice-presets">
+            <button class="preset-chip" onclick="loadPreset(0)">🚴 Serious Bike Crash (P3)</button>
+            <button class="preset-chip" onclick="loadPreset(1)">❤️ Father Collapsed (P3)</button>
+            <button class="preset-chip" onclick="loadPreset(2)">👶 Child Choking (P3)</button>
+            <button class="preset-chip" onclick="loadPreset(3)">🔥 Building Fire (P3)</button>
+            <button class="preset-chip" onclick="loadPreset(5)">🚗 Highway Crash (P2)</button>
+            <button class="preset-chip" onclick="loadPreset(10)">🦶 Sprained Ankle (P1)</button>
+            <button class="preset-chip" style="border-color: #38bdf8; color: #38bdf8;" onclick="dispatchSurgeBatch()">⚡ Batch 5 Calls</button>
+          </div>
+
+          <div class="voice-input-box">
+            <input type="text" id="callerInput" placeholder="Caller audio transcript or verbal statement..." />
+            <div class="voice-btn-row">
+              <button class="mic-btn" id="btnMic" onclick="toggleMic()">🎤 Mic</button>
+              <button class="btn primary" onclick="dispatchCustomCall()" style="flex: 1; justify-content: center;">Dispatch Call</button>
+              <button class="btn" onclick="resetLiveFleet()" title="Clear active calls and reset fleet to bases">↺ Reset Fleet</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Triage Result Display -->
+        <div class="triage-display" id="triageDisplay" style="margin-top: 8px;">
+          <div class="triage-top">
+            <span class="prio-badge p3" id="triagePrio">P3 — CRITICAL</span>
+            <span style="font-size: 0.8rem; font-weight: 700;" id="triageType">TRAFFIC_ACCIDENT</span>
+            <span class="confidence-tag" id="triageConf">98% Confidence</span>
+          </div>
+          <div style="font-size: 0.74rem; color: #cbd5e1;" id="triageSummary">
+            Immediate life-threatening trauma requiring urgent priority dispatch.
+          </div>
+          <div class="evidence-chips" id="triageEvidence">
+            <span class="ev-chip">Patient unconscious</span>
+            <span class="ev-chip">Severe hemorrhage</span>
+            <span class="ev-chip">Collision trauma</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Latest Dispatch Decision & Explainability Panel (WOW Moment 3 & 6) -->
+      <div class="panel-section">
+        <div class="section-header">
+          <span>Explainable Dispatch Decision</span>
+          <span style="color: #38bdf8;">Real Mathematical Scoring</span>
+        </div>
+
+        <div class="decision-card highlight" id="decisionCard">
+          <div class="decision-header">
+            <div>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Assigned:</span>
+              <span class="selected-unit" id="decUnit">🚑 Vehicle #12</span>
+            </div>
+            <span class="strat-badge" id="decStrat">PRESERVE_COVERAGE</span>
+          </div>
+
+          <div class="decision-reason" id="decReason">
+            Vehicle 12 selected instead of closer Vehicle 7 (4.1m vs 3.2m) because Vehicle 7 is the sole idle ambulance in Q2. Dispatching Vehicle 12 preserves Q2 coverage.
+          </div>
+
+          <div class="table-container">
+            <table class="candidate-table" id="candTable">
+              <thead>
+                <tr>
+                  <th>Unit</th>
+                  <th>Sector</th>
+                  <th>Travel</th>
+                  <th>Last in Sector?</th>
+                  <th>Cov. Pen</th>
+                  <th>Total Cost</th>
+                </tr>
+              </thead>
+              <tbody id="candTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: What-If Scenarios & Policy Comparison (Mode C / D) -->
+      <div class="panel-section">
+        <div class="section-header">
+          <span>Stress-Test &amp; What-If Scenarios</span>
+          <span style="color: var(--accent);">Judge Scenarios</span>
+        </div>
+
+        <div class="scenario-grid">
+          <button class="scenario-btn active" onclick="runScenario('NORMAL')">Normal</button>
+          <button class="scenario-btn" onclick="runScenario('VEHICLES_DOWN')">3 Units Down</button>
+          <button class="scenario-btn" onclick="runScenario('DEMAND_SURGE')">+30% Surge</button>
+          <button class="scenario-btn" onclick="runScenario('P3_SURGE')">P3 Crisis (50%)</button>
+          <button class="scenario-btn" onclick="runScenario('HIGH_RISK_QUADRANT')">Q2 Disaster</button>
+          <button class="scenario-btn" onclick="comparePolicies()">A/B Matrix</button>
+        </div>
+      </div>
+
+      <!-- Section 4: Real-Time Radio Dispatch Feed -->
+      <div class="panel-section" style="flex: 1; border-bottom: none;">
+        <div class="section-header">
+          <span>Live Radio Dispatch Stream</span>
+          <span id="radioCount">Live Events</span>
+        </div>
+        <div class="radio-feed" id="radioFeed">
+          <!-- Populated in real-time -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --- Global Application State ---
+    let simData = null;
+    let currentMode = 'A';
+    let currentPolicy = 'coverage_aware';
+    let fleetFilter = 'all'; // 'all' (allocated + standby readiness) | 'dynamic' (dispatched only)
+    let liveDispatchedCalls = []; // Array of live custom calls dispatched in Mode A
+    let liveFleetState = null; // Full fleet state from /api/live/state
+    let simTime = 0.0;
+    let isPlaying = false;
+    let speed = 1.0;
+    let lastTime = null;
+    let isRecording = false;
+    let speechRecognizer = null;
+
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width;
+    let H = canvas.height;
+
+    // Helper: convert vehicles dict {"0": {x,y,...}, "1": ...} to array [{id:0,x,y,...}, ...]
+    function vehiclesDictToArray(vDict) {
+      const arr = [];
+      for (const key of Object.keys(vDict)) {
+        arr.push({ id: parseInt(key), ...vDict[key] });
+      }
+      arr.sort((a, b) => a.id - b.id);
+      return arr;
+    }
+
+    // Load initial playback data
+    fetch('/api/playback')
+      .then(res => res.json())
+      .then(data => {
+        // Normalize vehicles from dict to array in each trace
+        for (const policy of ['naive', 'coverage_aware']) {
+          if (data[policy] && data[policy].vehicles && !Array.isArray(data[policy].vehicles)) {
+            data[policy].vehicles = vehiclesDictToArray(data[policy].vehicles);
+          }
+        }
+        simData = data;
+        // Populate stats from real data on load
+        setPolicy(currentPolicy);
+        render();
+      })
+      .catch(err => console.error("Playback load error:", err));
+
+    // Fetch live fleet state periodically for Mode A full-fleet view
+    async function fetchLiveFleetState() {
+      try {
+        const res = await fetch('/api/live/state');
+        liveFleetState = await res.json();
+      } catch(e) { /* ignore */ }
+    }
+    fetchLiveFleetState();
+    setInterval(fetchLiveFleetState, 2000);
+
+    // Connect WebSocket
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws/stream`);
+
+    socket.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.message) {
+        addRadioEvent(msg);
+      }
+    };
+
+    function addRadioEvent(ev) {
+      const feed = document.getElementById('radioFeed');
+      if (!feed) return;
+      const item = document.createElement('div');
+      item.className = `radio-item ${ev.level || ''}`;
+      const minStr = ev.minute !== undefined ? `m.${Math.floor(ev.minute)}` : 'NOW';
+      item.innerHTML = `<span class="radio-time">${minStr}</span> <span>${ev.message}</span>`;
+      feed.insertBefore(item, feed.firstChild);
+      if (feed.children.length > 50) feed.removeChild(feed.lastChild);
+    }
+
+    // --- Dynamic Fleet Filter Toggle ---
+    function setFleetFilter(f) {
+      fleetFilter = f;
+      if (document.getElementById('btnFilterAll')) {
+        document.getElementById('btnFilterAll').classList.toggle('active', f === 'all');
+      }
+      if (document.getElementById('btnFilterDynamic')) {
+        document.getElementById('btnFilterDynamic').classList.toggle('active', f === 'dynamic');
+      }
+      updateFleetStatus();
+      render();
+    }
+
+    // --- Policy Switcher (Coverage-Aware vs Naive Baseline) ---
+    function setPolicy(p) {
+      currentPolicy = p;
+      const isCov = p === 'coverage_aware';
+      document.getElementById('statPolicy').textContent = isCov ? 'Coverage-Aware' : 'Naive (Nearest)';
+      document.getElementById('statPolicy').style.color = isCov ? 'var(--accent)' : 'var(--danger)';
+
+      // Read REAL metrics from playback data (not hardcoded!)
+      if (simData && simData[p] && simData[p].metrics) {
+        const m = simData[p].metrics;
+        const otherKey = isCov ? 'naive' : 'coverage_aware';
+        const mOther = simData[otherKey] ? simData[otherKey].metrics : null;
+
+        // Weighted RT
+        document.getElementById('statWeightedRT').textContent = `${m.weighted_response_time.toFixed(1)}m`;
+
+        // P3 Critical RT with comparison
+        let p3Text = `${m.p3_response_time.toFixed(1)}m`;
+        if (mOther) {
+          const p3Diff = mOther.p3_response_time - m.p3_response_time;
+          if (isCov && p3Diff > 0.5) p3Text += ` (↓${p3Diff.toFixed(0)}m faster)`;
+          else if (!isCov && p3Diff < -0.5) p3Text += ` (↑${(-p3Diff).toFixed(0)}m slower)`;
+        }
+        document.getElementById('statP3RT').textContent = p3Text;
+
+        // Coverage outages with comparison
+        let outText = `${m.coverage_outages} / 121m`;
+        document.getElementById('statOutages').className = 'val ' + (m.coverage_outages < 100 ? 'good' : 'alert');
+        if (mOther) {
+          const outDiff = mOther.coverage_outages - m.coverage_outages;
+          if (isCov && outDiff > 0) outText += ` (↓${outDiff} fewer)`;
+          else if (!isCov && outDiff < 0) outText += ` (↑${-outDiff} more)`;
+        }
+        document.getElementById('statOutages').textContent = outText;
+      } else {
+        document.getElementById('statWeightedRT').textContent = '—';
+        document.getElementById('statP3RT').textContent = '—';
+        document.getElementById('statOutages').textContent = '—';
+      }
+
+      if (document.getElementById('btnPolicyCov')) {
+        document.getElementById('btnPolicyCov').classList.toggle('active', isCov);
+      }
+      if (document.getElementById('btnPolicyNaive')) {
+        document.getElementById('btnPolicyNaive').classList.toggle('active', !isCov);
+      }
+
+      updateTimelineBadges();
+      updateFleetStatus();
+      render();
+    }
+
+    // --- Mode Navigation ---
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`btnMode${mode}`).classList.add('active');
+
+      if (mode === 'A') {
+        document.getElementById('voiceSection').style.display = 'block';
+        if (isPlaying) togglePlay();
+      } else if (mode === 'B') {
+        document.getElementById('voiceSection').style.display = 'none';
+        seek(0);
+      } else if (mode === 'C') {
+        comparePolicies();
+      } else if (mode === 'D') {
+        runScenario('VEHICLES_DOWN');
+      }
+      updateFleetStatus();
+      render();
+    }
+
+    // --- Presets & Custom Voice Dispatch (Mode A) ---
+    const PRESETS = [
+      { text: "There has been a serious bike accident. The person is unconscious and bleeding badly.", x: 72, y: 31 },
+      { text: "My father has collapsed on the kitchen floor! He is not responding and clutching his chest!", x: 28, y: 64 },
+      { text: "My 4-year-old is choking on food! His lips are turning blue, he's not breathing!", x: 88, y: 15 },
+      { text: "Heavy black smoke and flames coming from the apartment building! People are trapped!", x: 45, y: 85 },
+      { text: "Construction worker fell off scaffolding, about 20 feet. Unconscious with severe head trauma.", x: 12, y: 38 },
+      { text: "Two cars collided at the intersection. One driver has a broken leg and cannot get out.", x: 62, y: 48 },
+      { text: "My teenage daughter is having a severe asthma attack. Her inhaler is empty, wheezing heavily.", x: 33, y: 22 },
+      { text: "Accident in kitchen, chef has deep laceration on forearm with continuous heavy bleeding.", x: 79, y: 75 },
+      { text: "Stove caught fire, flames spread. Someone has second degree burns on arms.", x: 18, y: 88 },
+      { text: "My grandfather is diabetic, he is extremely dizzy, confused, slurring speech.", x: 54, y: 12 },
+      { text: "I slipped on the ice while walking my dog and twisted my ankle badly. Can't walk.", x: 22, y: 15 },
+    ];
+
+    function loadPreset(idx) {
+      const p = PRESETS[idx];
+      document.getElementById('callerInput').value = p.text;
+      dispatchCustomCall(p.x, p.y);
+    }
+
+    async function dispatchSurgeBatch() {
+      const batchIndices = [0, 1, 2, 5, 10];
+      for (let i = 0; i < batchIndices.length; i++) {
+        const p = PRESETS[batchIndices[i]];
+        document.getElementById('callerInput').value = p.text;
+        await dispatchCustomCall(p.x, p.y);
+        await new Promise(r => setTimeout(r, 350));
+      }
+    }
+
+    async function resetLiveFleet() {
+      try {
+        await fetch('/api/live/reset', { method: 'POST' });
+        liveDispatchedCalls = [];
+        await fetchLiveFleetState(); // Refresh fleet positions
+        document.getElementById('q0Count').textContent = '5';
+        document.getElementById('q1Count').textContent = '5';
+        document.getElementById('q2Count').textContent = '5';
+        document.getElementById('q3Count').textContent = '5';
+        ['quadQ0', 'quadQ1', 'quadQ2', 'quadQ3'].forEach(id => {
+          document.getElementById(id).classList.remove('outage');
+        });
+        updateFleetStatus();
+        render();
+        addRadioEvent({
+          minute: 0,
+          level: 'success',
+          message: 'Fleet standby reset: 0 active calls, all 20 units ready at bases.'
+        });
+      } catch (err) {
+        console.error("Reset error:", err);
+      }
+    }
+
+    async function dispatchCustomCall(customX, customY) {
+      const text = document.getElementById('callerInput').value.trim();
+      if (!text) return;
+
+      try {
+        const res = await fetch('/api/call/voice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcript: text,
+            x: customX,
+            y: customY,
+            policy: currentPolicy === 'coverage_aware' ? 'coverage' : 'nearest',
+          }),
+        });
+
+        const data = await res.json();
+
+        // 1. Update AI Triage Panel
+        const t = data.triage;
+        document.getElementById('triagePrio').textContent = t.priority_label;
+        document.getElementById('triagePrio').className = `prio-badge p${t.priority}`;
+        document.getElementById('triageType').textContent = t.emergency_type;
+        document.getElementById('triageConf').textContent = `${Math.round(t.confidence * 100)}% Confidence`;
+        document.getElementById('triageSummary').textContent = t.summary;
+
+        const evList = document.getElementById('triageEvidence');
+        evList.innerHTML = '';
+        for (const ev of t.evidence) {
+          const chip = document.createElement('span');
+          chip.className = 'ev-chip';
+          chip.textContent = ev;
+          evList.appendChild(chip);
+        }
+
+        // 2. Update Decision Explanation Panel
+        const exp = data.explanation;
+        if (exp && exp.candidates && exp.candidates.length > 0) {
+          document.getElementById('decUnit').textContent = exp.selected_vehicle_id !== null ? `🚑 Vehicle #${exp.selected_vehicle_id}` : 'QUEUED';
+          document.getElementById('decStrat').textContent = exp.strategy || 'EVALUATED';
+          document.getElementById('decReason').textContent = exp.reason;
+
+          const tbody = document.getElementById('candTableBody');
+          tbody.innerHTML = '';
+          for (const c of exp.candidates.slice(0, 5)) {
+            const tr = document.createElement('tr');
+            if (c.vehicle_id === exp.selected_vehicle_id) tr.className = 'selected';
+            tr.innerHTML = `
+              <td>#${c.vehicle_id}</td>
+              <td>Q${c.quadrant}</td>
+              <td>${c.travel_time.toFixed(1)}m</td>
+              <td>${c.is_last ? '⚠️ YES' : 'No'}</td>
+              <td>+${c.coverage_penalty.toFixed(1)}</td>
+              <td>${c.total_cost.toFixed(1)}</td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+
+        // 3. Register live call and allocated vehicle for continuous canvas animation
+        if (data.vehicle) {
+          liveDispatchedCalls.push({
+            incident: data.incident,
+            vehicle: data.vehicle,
+            triage: data.triage,
+            explanation: data.explanation,
+            startTime: performance.now(),
+          });
+        }
+
+        // 4. Update quadrant counts
+        if (data.quadrant_idle_counts) {
+          const q = data.quadrant_idle_counts;
+          document.getElementById('q0Count').textContent = q[0];
+          document.getElementById('q1Count').textContent = q[1];
+          document.getElementById('q2Count').textContent = q[2];
+          document.getElementById('q3Count').textContent = q[3];
+
+          const updatePill = (id, count) => {
+            document.getElementById(id).classList.toggle('outage', count === 0);
+          };
+          updatePill('quadQ0', q[0]);
+          updatePill('quadQ1', q[1]);
+          updatePill('quadQ2', q[2]);
+          updatePill('quadQ3', q[3]);
+        }
+
+        updateFleetStatus();
+        render();
+      } catch (err) {
+        console.error("Dispatch error:", err);
+      }
+    }
+
+    // --- Web Speech API Microphone Intake ---
+    function toggleMic() {
+      const btn = document.getElementById('btnMic');
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert("Web Speech API is not supported in this browser. Please use the text input or call presets.");
+        return;
+      }
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!speechRecognizer) {
+        speechRecognizer = new SpeechRecognition();
+        speechRecognizer.continuous = false;
+        speechRecognizer.interimResults = false;
+
+        speechRecognizer.onresult = (event) => {
+          const text = event.results[0][0].transcript;
+          document.getElementById('callerInput').value = text;
+          dispatchCustomCall();
+        };
+
+        speechRecognizer.onend = () => {
+          isRecording = false;
+          btn.classList.remove('recording');
+          btn.textContent = '🎤 Mic';
+        };
+      }
+
+      if (!isRecording) {
+        speechRecognizer.start();
+        isRecording = true;
+        btn.classList.add('recording');
+        btn.textContent = '⏹ Listening';
+      } else {
+        speechRecognizer.stop();
+        isRecording = false;
+        btn.classList.remove('recording');
+        btn.textContent = '🎤 Mic';
+      }
+    }
+
+    // --- What-If Scenarios & A/B Benchmark (Mode C / D) ---
+    async function runScenario(scenarioName) {
+      document.querySelectorAll('.scenario-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.includes(scenarioName.substring(0, 4)));
+      });
+
+      try {
+        const res = await fetch('/api/scenarios/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scenario: scenarioName }),
+        });
+        const data = await res.json();
+        
+        // Populate decision card with comparative benchmark summary
+        const pol = data.policies;
+        document.getElementById('decUnit').textContent = `${scenarioName}: STRESS TEST`;
+        document.getElementById('decStrat').textContent = "A/B COMPARISON";
+        document.getElementById('decReason').textContent = `${data.description} Nearest RT: ${pol.nearest.weighted_response_time}m | Coverage-Aware RT: ${pol.coverage.weighted_response_time}m | Adaptive RT: ${pol.adaptive.weighted_response_time}m`;
+
+        const tbody = document.getElementById('candTableBody');
+        tbody.innerHTML = `
+          <tr>
+            <td><strong>Policy</strong></td>
+            <td><strong>Weighted RT</strong></td>
+            <td><strong>P3 RT</strong></td>
+            <td><strong>Outages</strong></td>
+            <td><strong>Assigned</strong></td>
+            <td><strong>Runtime</strong></td>
+          </tr>
+          <tr>
+            <td>Nearest</td>
+            <td>${pol.nearest.weighted_response_time}m</td>
+            <td>${pol.nearest.p3_response_time}m</td>
+            <td>${pol.nearest.coverage_outages}m</td>
+            <td>${pol.nearest.assigned_count}/${pol.nearest.total_incidents}</td>
+            <td>${pol.nearest.runtime_seconds}s</td>
+          </tr>
+          <tr class="selected">
+            <td>Coverage-Aware</td>
+            <td>${pol.coverage.weighted_response_time}m</td>
+            <td>${pol.coverage.p3_response_time}m</td>
+            <td>${pol.coverage.coverage_outages}m</td>
+            <td>${pol.coverage.assigned_count}/${pol.coverage.total_incidents}</td>
+            <td>${pol.coverage.runtime_seconds}s</td>
+          </tr>
+          <tr>
+            <td>Adaptive</td>
+            <td>${pol.adaptive.weighted_response_time}m</td>
+            <td>${pol.adaptive.p3_response_time}m</td>
+            <td>${pol.adaptive.coverage_outages}m</td>
+            <td>${pol.adaptive.assigned_count}/${pol.adaptive.total_incidents}</td>
+            <td>${pol.adaptive.runtime_seconds}s</td>
+          </tr>
+        `;
+      } catch (err) {
+        console.error("Scenario error:", err);
+      }
+    }
+
+    function comparePolicies() {
+      runScenario('NORMAL');
+    }
+
+    // --- Timeline Playback Controls (Mode B) ---
+    function toX(x) { return (x / 100) * W; }
+    function toY(y) { return H - (y / 100) * H; }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('playIcon').textContent = isPlaying ? '⏸' : '▶';
+      document.getElementById('playLabel').textContent = isPlaying ? 'Pause' : 'Play';
+    }
+
+    function setSpeed(s) {
+      speed = s;
+      document.querySelectorAll('.speed-btn').forEach(b => {
+        b.classList.toggle('active', parseFloat(b.textContent) === s);
+      });
+    }
+
+    function seek(m) {
+      simTime = Math.max(0, Math.min(120, m));
+      updateTimelineBadges();
+      updateFleetStatus();
+      render();
+    }
+
+    function step(dm) {
+      seek(Math.floor(simTime) + dm);
+    }
+
+    function jumpToNextCall() {
+      if (!simData) return;
+      const trace = simData[currentPolicy];
+      const upcoming = trace.incidents
+        .filter(inc => inc.arrival_minute > simTime + 0.05)
+        .sort((a, b) => a.arrival_minute - b.arrival_minute);
+
+      if (upcoming.length > 0) {
+        const nextInc = upcoming[0];
+        seek(nextInc.arrival_minute);
+        addRadioEvent({
+          minute: nextInc.arrival_minute,
+          level: nextInc.priority === 3 ? 'critical' : (nextInc.priority === 2 ? 'warning' : 'info'),
+          message: `Call #${nextInc.id} Arrived [P${nextInc.priority}] at (${nextInc.x.toFixed(1)}, ${nextInc.y.toFixed(1)}) → Unit #${nextInc.assigned_vehicle_id} Dispatched`,
+        });
+      } else {
+        seek(120);
+      }
+    }
+
+    document.getElementById('timeSlider').addEventListener('input', (e) => {
+      seek(parseFloat(e.target.value));
+    });
+
+    function updateTimelineBadges() {
+      document.getElementById('timeSlider').value = simTime;
+      document.getElementById('timeReadout').textContent = `t = ${simTime.toFixed(2)} min`;
+
+      if (!simData) return;
+      const tInt = Math.min(120, Math.floor(simTime));
+      const frame = simData[currentPolicy].timeline[tInt];
+      if (!frame) return;
+
+      const q = frame.idle_counts;
+      const updatePill = (id, count) => {
+        const badge = document.getElementById(id);
+        badge.classList.toggle('outage', count === 0);
+      };
+
+      document.getElementById('q0Count').textContent = q[0];
+      document.getElementById('q1Count').textContent = q[1];
+      document.getElementById('q2Count').textContent = q[2];
+      document.getElementById('q3Count').textContent = q[3];
+
+      updatePill('quadQ0', q[0]);
+      updatePill('quadQ1', q[1]);
+      updatePill('quadQ2', q[2]);
+      updatePill('quadQ3', q[3]);
+    }
+
+    function updateFleetStatus() {
+      const txt = document.getElementById('fleetStatusText');
+      const dot = document.getElementById('statusDot');
+      if (!txt || !dot) return;
+
+      if (currentMode === 'A') {
+        const count = liveDispatchedCalls.length;
+        const allocatedIds = new Set(liveDispatchedCalls.map(c => c.vehicle.id));
+
+        // Compute real-time quadrant counts for Mode A
+        let q0 = 5, q1 = 5, q2 = 5, q3 = 5;
+        if (liveFleetState && liveFleetState.vehicles) {
+          q0 = 0; q1 = 0; q2 = 0; q3 = 0;
+          for (const v of liveFleetState.vehicles) {
+            if (!allocatedIds.has(v.id)) {
+              if (v.x < 50 && v.y < 50) q0++;
+              else if (v.x >= 50 && v.y < 50) q1++;
+              else if (v.x < 50 && v.y >= 50) q2++;
+              else q3++;
+            }
+          }
+        }
+        document.getElementById('q0Count').textContent = q0;
+        document.getElementById('q1Count').textContent = q1;
+        document.getElementById('q2Count').textContent = q2;
+        document.getElementById('q3Count').textContent = q3;
+        document.getElementById('quadQ0').classList.toggle('outage', q0 === 0);
+        document.getElementById('quadQ1').classList.toggle('outage', q1 === 0);
+        document.getElementById('quadQ2').classList.toggle('outage', q2 === 0);
+        document.getElementById('quadQ3').classList.toggle('outage', q3 === 0);
+
+        if (count === 0) {
+          txt.textContent = 'STANDBY • ALL QUADRANTS SECURED (20 UNITS READY)';
+          dot.style.background = '#10b981';
+          dot.style.boxShadow = '0 0 8px #10b981';
+        } else if (count === 1) {
+          const v = liveDispatchedCalls[0].vehicle;
+          txt.textContent = `1 ACTIVE CALL • 🚑 UNIT #${v.id} IN ROUTE • STANDBY UNITS SECURING QUADRANTS`;
+          dot.style.background = '#38bdf8';
+          dot.style.boxShadow = '0 0 8px #38bdf8';
+        } else {
+          txt.textContent = `${count} ACTIVE CALLS • ${count} UNITS ENGAGED • STANDBY UNITS SECURING QUADRANTS`;
+          dot.style.background = '#f97316';
+          dot.style.boxShadow = '0 0 8px #f97316';
+        }
+      } else {
+        if (!simData) return;
+        const trace = simData[currentPolicy];
+        const tInt = Math.min(120, Math.floor(simTime));
+        const frame = trace.timeline[tInt];
+        const activeCalls = trace.incidents.filter(i => i.arrival_minute <= simTime && (i.completed_minute === null || i.completed_minute > simTime));
+        const idleTotal = frame ? frame.idle_counts.reduce((a, b) => a + b, 0) : 20;
+
+        txt.textContent = `50-CALL BENCHMARK: t=${simTime.toFixed(1)}m • ${activeCalls.length} ACTIVE CALLS • ${idleTotal} IDLE UNITS`;
+        dot.style.background = frame && frame.idle_counts.some(c => c === 0) ? '#ef4444' : '#10b981';
+        dot.style.boxShadow = `0 0 8px ${dot.style.background}`;
+      }
+    }
+
+    // --- 60 FPS Main Animation Loop ---
+    function loop(ts) {
+      if (!lastTime) lastTime = ts;
+      const dt = (ts - lastTime) / 1000;
+      lastTime = ts;
+
+      if (currentMode !== 'A' && isPlaying) {
+        simTime += dt * speed;
+        if (simTime >= 120) {
+          simTime = 120;
+          togglePlay();
+        }
+        updateTimelineBadges();
+      }
+
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    // Start 60 FPS rendering loop
+    requestAnimationFrame(loop);
+
+    // Dynamic map layout & retina canvas resolution sync (Wide Layout)
+    function syncMapLayout() {
+      const container = document.getElementById('canvasContainer');
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const w = Math.floor(rect.width);
+      const h = Math.floor(rect.height);
+      if (w > 100 && h > 100) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const targetW = Math.round(w * dpr);
+        const targetH = Math.round(h * dpr);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+          W = canvas.width;
+          H = canvas.height;
+        }
+      }
+    }
+    window.addEventListener('resize', () => {
+      syncMapLayout();
+      render();
+    });
+
+    // --- Master Render Function ---
+    function render() {
+      syncMapLayout();
+
+      ctx.clearRect(0, 0, W, H);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const S = dpr;
+
+      // Grid background
+      ctx.fillStyle = '#060a12';
+      ctx.fillRect(0, 0, W, H);
+
+      // Grid lines
+      ctx.strokeStyle = '#141d2e';
+      ctx.lineWidth = 1 * S;
+      for (let i = 10; i < 100; i += 10) {
+        ctx.beginPath(); ctx.moveTo(toX(i), 0); ctx.lineTo(toX(i), H); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, toY(i)); ctx.lineTo(W, toY(i)); ctx.stroke();
+      }
+
+      // Quadrant partition lines
+      ctx.strokeStyle = '#2c3a58';
+      ctx.lineWidth = 1.8 * S;
+      ctx.setLineDash([8 * S, 6 * S]);
+      ctx.beginPath(); ctx.moveTo(toX(50), 0); ctx.lineTo(toX(50), H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, toY(50)); ctx.lineTo(W, toY(50)); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Quadrant sector watermark labels
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.12)';
+      ctx.font = '900 ' + Math.round(26 * S) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Q2 (NW)', toX(25), toY(75));
+      ctx.fillText('Q3 (NE)', toX(75), toY(75));
+      ctx.fillText('Q0 (SW)', toX(25), toY(25));
+      ctx.fillText('Q1 (SE)', toX(75), toY(25));
+
+      if (currentMode === 'A') {
+        renderModeA();
+      } else {
+        renderModeB();
+      }
+    }
+
+    // --- Render Mode A: Live Interactive Calls ---
+    function renderModeA() {
+      const now = performance.now();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const S = dpr;
+      updateFleetStatus();
+
+      // Collect IDs of vehicles that are currently dispatched
+      const allocatedIds = new Set(liveDispatchedCalls.map(c => c.vehicle.id));
+
+      // Draw standby vehicles stationed across all quadrants (Proves Coverage Guarantee!)
+      if (fleetFilter !== 'dynamic') {
+        if (liveFleetState && liveFleetState.vehicles) {
+          for (const v of liveFleetState.vehicles) {
+            if (!allocatedIds.has(v.id)) {
+              drawAmbulance(v.id, v.x, v.y, 'idle', 0, 0, 0.65);
+            }
+          }
+        }
+      }
+
+      // If no calls are currently in flight
+      if (liveDispatchedCalls.length === 0) {
+        if (fleetFilter === 'dynamic') {
+          const pulse = (Math.sin(now / 350) + 1) * 6 * S;
+          ctx.beginPath();
+          ctx.arc(toX(50), toY(50), 35 * S + pulse, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+          ctx.lineWidth = 1.5 * S;
+          ctx.stroke();
+
+          ctx.fillStyle = '#64748b';
+          ctx.font = `bold ${Math.round(12 * S)}px sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('STANDBY — AWAITING EMERGENCY CALL', toX(50), toY(50));
+        }
+        return;
+      }
+
+      // Render allocated ambulances and their target calls
+      for (let i = 0; i < liveDispatchedCalls.length; i++) {
+        const call = liveDispatchedCalls[i];
+        const veh = call.vehicle;
+        const inc = call.incident;
+
+        const elapsedSec = (now - call.startTime) / 1000.0;
+        const travelDurationSec = Math.max(3.0, Math.min(8.0, veh.travel_time * 0.35));
+        const isArrived = elapsedSec >= travelDurationSec;
+        const frac = Math.min(1.0, elapsedSec / travelDurationSec);
+
+        const curX = veh.start_x + frac * (veh.dest_x - veh.start_x);
+        const curY = veh.start_y + frac * (veh.dest_y - veh.start_y);
+        const heading = Math.atan2(toY(veh.dest_y) - toY(veh.start_y), toX(veh.dest_x) - toX(veh.start_x));
+        const status = isArrived ? 'servicing' : 'traveling';
+        const remainingTravelMin = Math.max(0, (1 - frac) * veh.travel_time);
+
+        // Trajectory dashed line
+        ctx.strokeStyle = inc.priority === 3 ? 'rgba(239, 68, 68, 0.75)' : 'rgba(56, 189, 248, 0.75)';
+        ctx.lineWidth = 1.8 * S;
+        ctx.setLineDash([6 * S, 4 * S]);
+        ctx.beginPath();
+        ctx.moveTo(toX(curX), toY(curY));
+        ctx.lineTo(toX(inc.x), toY(inc.y));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Incident Call
+        drawIncidentMarker(inc.id, inc.x, inc.y, inc.priority, isArrived, remainingTravelMin);
+
+        // Draw allocated ambulance with full opacity and siren
+        drawAmbulance(veh.id, curX, curY, status, heading, frac, 1.0, remainingTravelMin);
+      }
+    }
+
+    // --- Render Mode B: 100-Call Simulation Playback ---
+    function renderModeB() {
+      if (!simData) return;
+      const trace = simData[currentPolicy];
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const S = dpr;
+      updateFleetStatus();
+
+      // Outage quadrant soft shading
+      const tInt = Math.min(120, Math.floor(simTime));
+      const qCounts = trace.timeline[tInt] ? trace.timeline[tInt].idle_counts : [5,5,5,5];
+      const shadeQ = (x0, y0, w, h) => {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+        ctx.fillRect(x0, y0, w, h);
+      };
+      if (qCounts[2] === 0) shadeQ(0, 0, W / 2, H / 2);
+      if (qCounts[3] === 0) shadeQ(W / 2, 0, W / 2, H / 2);
+      if (qCounts[0] === 0) shadeQ(0, H / 2, W / 2, H / 2);
+      if (qCounts[1] === 0) shadeQ(W / 2, H / 2, W / 2, H / 2);
+
+      // Compute continuous vehicle positions & allocation states (PRD §3: one vehicle per incident)
+      // Walk each vehicle's sorted assignment history to find its state at simTime.
+      // Assignments are already sorted by assigned_minute (chronological) by export_playback.py.
+      const vStates = [];
+      // Track which incident targets are already claimed to prevent duplicate rendering
+      const claimedTargets = new Set();
+
+      for (let vId = 0; vId < 20; vId++) {
+        const init = trace.vehicles[vId];
+        if (!init) continue;
+        // Start from initial base position; walk forward through completed assignments
+        let vx = init.x, vy = init.y, status = 'idle', target = null, heading = 0, progress = 0;
+        let isAllocated = false;
+
+        const assignments = trace.vehicle_assignments[String(vId)] || trace.vehicle_assignments[vId] || [];
+
+        // Walk assignments in chronological order:
+        // - skip assignments that haven't started yet (assigned_minute > simTime)
+        // - advance position for completed assignments
+        // - set active state for the one in-progress assignment and STOP
+        let foundActive = false;
+        for (const a of assignments) {
+          if (a.assigned_minute > simTime) {
+            // This and all remaining assignments are in the future — stop
+            break;
+          }
+
+          isAllocated = true;
+
+          if (a.completed_minute <= simTime) {
+            // Fully completed: advance resting position to incident site
+            vx = a.dest_x;
+            vy = a.dest_y;
+            status = 'idle';
+            target = null;
+          } else {
+            // This assignment is currently in-progress — compute interpolated position
+            target = a.incident_id;
+            if (simTime < a.reached_minute) {
+              // En route (traveling)
+              status = 'traveling';
+              const duration = Math.max(1e-4, a.reached_minute - a.assigned_minute);
+              const frac = Math.min(1.0, Math.max(0.0, (simTime - a.assigned_minute) / duration));
+              vx = a.start_x + frac * (a.dest_x - a.start_x);
+              vy = a.start_y + frac * (a.dest_y - a.start_y);
+              heading = Math.atan2(toY(a.dest_y) - toY(a.start_y), toX(a.dest_x) - toX(a.start_x));
+            } else {
+              // On scene (servicing)
+              status = 'servicing';
+              vx = a.dest_x;
+              vy = a.dest_y;
+              progress = Math.min(1.0, (simTime - a.reached_minute) / 8.0);
+            }
+            foundActive = true;
+            break; // Only one active assignment per vehicle at any time
+          }
+        }
+
+        vStates.push({ id: vId, x: vx, y: vy, status, target, heading, progress, isAllocated });
+      }
+
+      // Draw Incidents: active calls + recently completed within 3 mins (keeps canvas legible)
+      for (const inc of trace.incidents) {
+        if (inc.arrival_minute > simTime) continue;
+        const isDone = inc.completed_minute !== null && inc.completed_minute <= simTime;
+        if (isDone && (simTime - inc.completed_minute) > 3.0) continue;
+        drawIncidentMarker(inc.id, inc.x, inc.y, inc.priority, isDone, null);
+      }
+
+      // Build incident lookup map
+      const incidentById = {};
+      for (const inc of trace.incidents) {
+        incidentById[inc.id] = inc;
+      }
+
+      // Draw Trajectory Lines for active vehicles
+      // claimedTargets prevents rendering two lines to the same incident (PRD §3 visual guarantee)
+      ctx.lineWidth = 1.8 * S;
+      for (const v of vStates) {
+        if (v.status === 'traveling' && v.target !== null) {
+          // Skip if this incident already has a trajectory from another vehicle (shouldn't happen
+          // with correct simulator, but guard here in case of display glitches)
+          if (claimedTargets.has(v.target)) continue;
+          claimedTargets.add(v.target);
+          const inc = incidentById[v.target];
+          if (inc) {
+            ctx.strokeStyle = inc.priority === 3 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(56, 189, 248, 0.7)';
+            ctx.setLineDash([6 * S, 4 * S]);
+            ctx.beginPath();
+            ctx.moveTo(toX(v.x), toY(v.y));
+            ctx.lineTo(toX(inc.x), toY(inc.y));
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        }
+      }
+
+      // Draw Ambulances: active moving units + standby units
+      for (const v of vStates) {
+        if (fleetFilter === 'dynamic' && !v.isAllocated) {
+          continue;
+        }
+        const opacity = (v.status === 'idle') ? 0.65 : 1.0;
+        drawAmbulance(v.id, v.x, v.y, v.status, v.heading, v.progress, opacity);
+      }
+    }
+
+    // --- Helper Drawing Functions: Sleek, Compact, Proportional Vehicles ---
+    function drawAmbulance(id, x, y, status, heading, progress, opacity = 1.0, etaMin = null) {
+      const cx = toX(x), cy = toY(y);
+      ctx.save();
+      ctx.globalAlpha = opacity;
+
+      // Fixed crisp DPR scale (22px chassis on screen, not 80px!)
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const S = dpr;
+
+      let col = '#10b981'; // idle emerald
+      let colDark = '#059669';
+      if (status === 'traveling') { col = '#0284c7'; colDark = '#0369a1'; }
+      if (status === 'servicing') { col = '#eab308'; colDark = '#b45309'; }
+
+      // 1. Servicing countdown ring around vehicle
+      if (status === 'servicing') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14 * S, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - progress));
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2 * S;
+        ctx.stroke();
+      }
+
+      // 2. Traveling siren flash & subtle radar ripples
+      if (status === 'traveling') {
+        const flash = Math.sin(performance.now() / 80) > 0;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 15 * S, 0, Math.PI * 2);
+        ctx.strokeStyle = flash ? 'rgba(56, 189, 248, 0.85)' : 'rgba(239, 68, 68, 0.85)';
+        ctx.lineWidth = 1.5 * S;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 21 * S, 0, Math.PI * 2);
+        ctx.strokeStyle = flash ? 'rgba(56, 189, 248, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+        ctx.lineWidth = 1 * S;
+        ctx.stroke();
+      }
+
+      // 3. Chassis & Vehicle Body (Compact 22px × 15px)
+      ctx.translate(cx, cy);
+      if (status === 'traveling') ctx.rotate(heading);
+
+      // Chassis drop shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.roundRect(-11 * S + 1, -7.5 * S + 1.5, 22 * S, 15 * S, 3 * S);
+      ctx.fill();
+
+      // Vehicle body gradient
+      const grad = ctx.createLinearGradient(-11 * S, -7.5 * S, 11 * S, 7.5 * S);
+      grad.addColorStop(0, col);
+      grad.addColorStop(1, colDark);
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2 * S;
+      ctx.beginPath();
+      ctx.roundRect(-11 * S, -7.5 * S, 22 * S, 15 * S, 3 * S);
+      ctx.fill();
+      ctx.stroke();
+
+      // Cabin windshield
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(5 * S, -5.5 * S, 3.5 * S, 11 * S, 1.5 * S);
+      ctx.fill();
+
+      // Roof emergency lightbars
+      if (status === 'traveling') {
+        const flash = Math.sin(performance.now() / 80) > 0;
+        ctx.fillStyle = flash ? '#ef4444' : '#1e3a8a';
+        ctx.beginPath();
+        ctx.arc(-1 * S, -6.5 * S, 1.8 * S, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = flash ? '#1e3a8a' : '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(3 * S, -6.5 * S, 1.8 * S, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Medical red cross ✚ badge
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-4 * S, 0, 3.8 * S, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(-6 * S, -0.9 * S, 4 * S, 1.8 * S);
+      ctx.fillRect(-4.9 * S, -2 * S, 1.8 * S, 4 * S);
+
+      // Unit number inside vehicle
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 ${Math.round(8.5 * S)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(id, 4.5 * S, 0);
+
+      ctx.restore();
+
+      // 4. Floating HUD label ONLY for active moving or servicing ambulances
+      if (status === 'traveling' || status === 'servicing') {
+        const tagText = etaMin !== null && etaMin > 0 ? `🚑 #${id} • ETA ${etaMin.toFixed(1)}m` : `🚑 #${id}`;
+        const fontPx = Math.round(8 * S);
+        ctx.font = `bold ${fontPx}px sans-serif`;
+        const textWidth = ctx.measureText(tagText).width;
+        const pillW = textWidth + 10 * S;
+        const pillH = 15 * S;
+        const pillY = cy - 16 * S;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.strokeStyle = status === 'traveling' ? '#38bdf8' : '#f59e0b';
+        ctx.lineWidth = 1 * S;
+        ctx.beginPath();
+        ctx.roundRect(cx - pillW / 2, pillY - pillH / 2, pillW, pillH, 4 * S);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tagText, cx, pillY);
+      }
+    }
+
+    // --- Helper Drawing Functions: Sleek, Compact Incident Markers ---
+    function drawIncidentMarker(id, x, y, priority, isDone, etaMin) {
+      const cx = toX(x), cy = toY(y);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const S = dpr;
+
+      if (isDone) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.5 * S, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.5)';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1 * S;
+        ctx.stroke();
+        return;
+      }
+
+      let col = '#94a3b8', r = 6 * S;
+      let prioName = 'P1';
+
+      if (priority === 2) {
+        col = '#f97316';
+        r = 8 * S;
+        prioName = 'P2';
+      }
+      if (priority === 3) {
+        col = '#ef4444';
+        r = 10 * S;
+        prioName = 'P3';
+
+        // Subtle warning ripple for P3 critical calls
+        const wave = (performance.now() / 25) % (16 * S);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + wave, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${Math.max(0, 0.65 - wave / (16 * S))})`;
+        ctx.lineWidth = 1.2 * S;
+        ctx.stroke();
+      }
+
+      // Main pin circle
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5 * S;
+      ctx.stroke();
+
+      // Priority text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 ${Math.round(7.5 * S)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(prioName, cx, cy);
+
+      // Compact Incident ID tag
+      const fontPx = Math.round(7.5 * S);
+      ctx.font = `bold ${fontPx}px sans-serif`;
+      const lbl = etaMin !== null && etaMin > 0 ? `Call #${id} (${etaMin.toFixed(1)}m)` : `Call #${id}`;
+      const pillW = ctx.measureText(lbl).width + 8 * S;
+      const pillH = 13 * S;
+      const pillY = cy + r + 8 * S;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1 * S;
+      ctx.beginPath();
+      ctx.roundRect(cx - pillW / 2, pillY - pillH / 2, pillW, pillH, 3 * S);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(lbl, cx, pillY);
+    }
+  </script>
+</body>
+</html>

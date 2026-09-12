@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Outputs (regenerated at runtime)
+outputs/playback_data.json
+web/outputs/
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Misc
+*.log

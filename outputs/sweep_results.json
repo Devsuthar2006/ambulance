@@ -1,0 +1,83 @@
+[
+  {
+    "priority_weighted_response_time": 57.141,
+    "priority3_response_time": 50.4139,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001679,
+    "seed": 20260911,
+    "policy": "Naive (penalty=0)",
+    "penalty": 0.0
+  },
+  {
+    "priority_weighted_response_time": 57.141,
+    "priority3_response_time": 50.4139,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001923,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=5.0)",
+    "penalty": 5.0
+  },
+  {
+    "priority_weighted_response_time": 57.141,
+    "priority3_response_time": 50.4139,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001707,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=10.0)",
+    "penalty": 10.0
+  },
+  {
+    "priority_weighted_response_time": 57.141,
+    "priority3_response_time": 50.4139,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001614,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=15.0)",
+    "penalty": 15.0
+  },
+  {
+    "priority_weighted_response_time": 57.141,
+    "priority3_response_time": 50.4139,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001609,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=20.0)",
+    "penalty": 20.0
+  },
+  {
+    "priority_weighted_response_time": 57.1658,
+    "priority3_response_time": 54.3388,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001675,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=25.0)",
+    "penalty": 25.0
+  },
+  {
+    "priority_weighted_response_time": 57.1658,
+    "priority3_response_time": 54.3388,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001646,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=30.0)",
+    "penalty": 30.0
+  },
+  {
+    "priority_weighted_response_time": 57.1658,
+    "priority3_response_time": 54.3388,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001668,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=40.0)",
+    "penalty": 40.0
+  },
+  {
+    "priority_weighted_response_time": 57.1658,
+    "priority3_response_time": 54.3388,
+    "coverage_outage_minutes": 115,
+    "runtime_seconds": 0.001674,
+    "seed": 20260911,
+    "policy": "CoverageAware (penalty=50.0)",
+    "penalty": 50.0
+  }
+]
