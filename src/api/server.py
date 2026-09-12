@@ -247,7 +247,7 @@ async def handle_voice_call(request: Request):
                 _dispatched_incident_ids.add(inc.id)
 
                 start_x, start_y = v.x, v.y
-                road_geom = road_router.get_route_between_grid_points(start_x, start_y, inc.x, inc.y)
+                route_analysis = road_router.get_route_analysis_between_grid_points(start_x, start_y, inc.x, inc.y)
 
                 vehicle_dict = {
                     "id": v.id,
@@ -255,7 +255,10 @@ async def handle_voice_call(request: Request):
                     "start_y": start_y,
                     "dest_x": inc.x,
                     "dest_y": inc.y,
-                    "road_geometry": road_geom,
+                    "road_geometry": route_analysis.waypoints,
+                    "map_distance_meters": route_analysis.distance_meters,
+                    "map_duration_seconds": route_analysis.duration_seconds,
+                    "map_source": route_analysis.source,
                     "raw_distance": round(dist, 2),
                     "traffic_multiplier": round(traffic_mult, 2),
                     "travel_time": round(travel_time, 2),
@@ -371,18 +374,23 @@ async def get_route(
     dest_lat: float | None = None,
     dest_lon: float | None = None,
 ):
-    """Return turn-by-turn road geometry following real city streets and highways."""
+    """Return turn-by-turn road geometry and traffic analysis extracted from real map data."""
     if start_x is not None and start_y is not None and dest_x is not None and dest_y is not None:
-        waypoints = road_router.get_route_between_grid_points(start_x, start_y, dest_x, dest_y)
+        analysis = road_router.get_route_analysis_between_grid_points(start_x, start_y, dest_x, dest_y)
     elif start_lat is not None and start_lon is not None and dest_lat is not None and dest_lon is not None:
-        waypoints = road_router.get_route(start_lat, start_lon, dest_lat, dest_lon)
+        analysis = road_router.get_route_analysis(start_lat, start_lon, dest_lat, dest_lon)
     else:
         return JSONResponse({"status": "error", "message": "Missing start and destination coordinates"}, status_code=400)
 
     return {
         "status": "ok",
-        "waypoints": waypoints,
-        "count": len(waypoints),
+        "waypoints": analysis.waypoints,
+        "count": len(analysis.waypoints),
+        "distance_meters": analysis.distance_meters,
+        "duration_seconds": analysis.duration_seconds,
+        "travel_time_minutes": analysis.travel_time_minutes,
+        "traffic_multiplier": analysis.traffic_multiplier,
+        "source": analysis.source,
     }
 
 

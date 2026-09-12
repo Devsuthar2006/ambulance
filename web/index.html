@@ -1679,62 +1679,11 @@
     }
 
     function renderTrafficOnMap() {
-      if (!trafficLayersGroup || !trafficModelData) return;
+      if (!trafficLayersGroup) return;
       trafficLayersGroup.clearLayers();
-
-      if (!showTrafficLayer) return;
-
-      // 1. Corridors
-      if (trafficModelData.corridors) {
-        for (const c of trafficModelData.corridors) {
-          const [lat1, lon1] = gridToLatLon(c.x1, c.y1);
-          const [lat2, lon2] = gridToLatLon(c.x2, c.y2);
-
-          const col = c.multiplier >= 3 ? '#ef4444' : (c.multiplier >= 2 ? '#f97316' : (c.multiplier > 1.2 ? '#eab308' : '#10b981'));
-          const weight = c.multiplier >= 3 ? 6 : (c.multiplier >= 2 ? 5 : 4);
-
-          const poly = L.polyline([[lat1, lon1], [lat2, lon2]], {
-            color: col,
-            weight: weight,
-            opacity: 0.85,
-            lineCap: 'round',
-          }).addTo(trafficLayersGroup);
-
-          poly.bindTooltip(`
-            <div style="font-family: sans-serif; font-size: 11px; padding: 2px;">
-              <strong style="color: ${col};">${c.name}</strong><br/>
-              Status: <strong>${c.multiplier >= 3 ? 'GRIDLOCK' : (c.multiplier >= 2 ? 'HEAVY' : 'CLEAR')}</strong> (${c.multiplier}x delay)<br/>
-              Type: ${c.is_expressway ? 'Expressway Bypass' : 'Urban Arterial'}
-            </div>
-          `, { sticky: true });
-        }
-      }
-
-      // 2. Congestion Zones
-      if (trafficModelData.zones) {
-        for (const z of trafficModelData.zones) {
-          const [lat, lon] = gridToLatLon(z.center_x, z.center_y);
-          const latSpanKm = (METRO_BOUNDS.lat_max - METRO_BOUNDS.lat_min) * 111.0;
-          const radiusMeters = (z.radius / 100.0) * latSpanKm * 1000.0;
-
-          const circle = L.circle([lat, lon], {
-            radius: radiusMeters,
-            color: '#ef4444',
-            weight: 1.5,
-            dashArray: '4, 4',
-            fillColor: '#ef4444',
-            fillOpacity: 0.12,
-          }).addTo(trafficLayersGroup);
-
-          circle.bindTooltip(`
-            <div style="font-family: sans-serif; font-size: 11px;">
-              <strong style="color: #ef4444;">🚨 ${z.name}</strong><br/>
-              Congestion: <strong>${z.multiplier}x slowdown</strong><br/>
-              ${z.description}
-            </div>
-          `, { sticky: true });
-        }
-      }
+      // Manual synthetic red/yellow/green lines removed:
+      // Real map traffic analysis uses official Google Live Traffic tile overlay
+      // and road network routing data directly.
     }
 
     function setMapView(view) {

@@ -11,6 +11,7 @@ from src.traffic.traffic_model import (
 )
 from src.traffic.road_router import (
     RoadRouter,
+    RouteAnalysis,
     get_default_road_router,
     interpolate_road_polyline,
     haversine_distance,
